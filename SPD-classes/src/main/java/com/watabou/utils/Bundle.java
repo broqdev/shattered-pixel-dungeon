@@ -539,7 +539,7 @@ public class Bundle {
 	public static boolean write( Bundle bundle, OutputStream stream, boolean compressed ) {
 		try {
 			BufferedWriter writer;
-			if (compressed) writer = new BufferedWriter( new OutputStreamWriter( new GZIPOutputStream(stream, GZIP_BUFFER ) ) );
+			if (compressed && !DeviceCompat.isWeb()) writer = new BufferedWriter( new OutputStreamWriter( new GZIPOutputStream(stream, GZIP_BUFFER ) ) );
 			else writer = new BufferedWriter( new OutputStreamWriter( stream ) );
 
 			//JSONObject.write does not exist on Android/iOS

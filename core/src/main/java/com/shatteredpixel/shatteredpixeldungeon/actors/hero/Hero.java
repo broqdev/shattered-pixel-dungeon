@@ -179,6 +179,7 @@ import com.watabou.noosa.tweeners.Delayer;
 import com.watabou.utils.BArray;
 import com.watabou.utils.Bundle;
 import com.watabou.utils.Callback;
+import com.watabou.utils.DeviceCompat;
 import com.watabou.utils.GameMath;
 import com.watabou.utils.PathFinder;
 import com.watabou.utils.Point;
@@ -187,8 +188,11 @@ import com.watabou.utils.Random;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.logging.Logger;
 
 public class Hero extends Char {
+
+	private static final Logger LOG = Logger.getLogger(Hero.class.getName());
 
 	{
 		actPriority = HERO_PRIO;
@@ -976,7 +980,9 @@ public class Hero extends Char {
 	
 	private boolean actMove( HeroAction.Move action ) {
 
+		int from = pos;
 		if (getCloser( action.dst )) {
+			logWebMoveAction("step", from, action.dst);
 			canSelfTrample = false;
 			return true;
 
@@ -985,8 +991,10 @@ public class Hero extends Char {
 			canSelfTrample = false;
 			Dungeon.level.pressCell(pos);
 			spendAndNext( 1 / speed() );
+			logWebMoveAction("trample", from, action.dst);
 			return false;
 		} else {
+			logWebMoveAction("blocked", from, action.dst);
 			ready();
 			return false;
 		}
@@ -2284,9 +2292,18 @@ public class Hero extends Char {
 
 	@Override
 	public void move(int step, boolean travelling) {
+		int from = pos;
 		boolean wasHighGrass = Dungeon.level.map[step] == Terrain.HIGH_GRASS;
 
 		super.move( step, travelling);
+		if (DeviceCompat.isWeb() && Dungeon.depth <= 2) {
+			LOG.info("Hero.move: depth=" + Dungeon.depth
+					+ " branch=" + Dungeon.branch
+					+ " from=" + from
+					+ " to=" + pos
+					+ " travelling=" + travelling
+					+ " terrain=" + terrainName(Dungeon.level.map[pos]));
+		}
 		
 		if (!flying && travelling) {
 			if (Dungeon.level.water[pos]) {
@@ -2304,6 +2321,81 @@ public class Hero extends Char {
 			} else {
 				Sample.INSTANCE.play( Assets.Sounds.STEP, 1, Random.Float( 0.96f, 1.05f ) );
 			}
+		}
+	}
+
+	private void logWebMoveAction(String result, int from, int target) {
+		if (DeviceCompat.isWeb() && Dungeon.depth <= 2) {
+			LOG.info("Hero.actMove: depth=" + Dungeon.depth
+					+ " branch=" + Dungeon.branch
+					+ " result=" + result
+					+ " from=" + from
+					+ " target=" + target
+					+ " current=" + pos
+					+ " pathRemaining=" + (path == null ? -1 : path.size())
+					+ " targetCell=" + describeWebCell(target));
+		}
+	}
+
+	private static String describeWebCell(int cell) {
+		if (Dungeon.level == null || cell < 0 || cell >= Dungeon.level.length()) {
+			return "out-of-bounds";
+		}
+
+		Char ch = Actor.findChar(cell);
+		Heap heap = Dungeon.level.heaps.get(cell);
+		return terrainName(Dungeon.level.map[cell])
+				+ ",passable=" + Dungeon.level.passable[cell]
+				+ ",avoid=" + Dungeon.level.avoid[cell]
+				+ ",solid=" + Dungeon.level.solid[cell]
+				+ ",mapped=" + Dungeon.level.mapped[cell]
+				+ ",visited=" + Dungeon.level.visited[cell]
+				+ ",char=" + (ch == null ? "none" : ch.name())
+				+ ",heap=" + (heap == null ? "none" : heap.type);
+	}
+
+	private static String terrainName(int terrain) {
+		switch (terrain) {
+			case Terrain.CHASM: return "CHASM";
+			case Terrain.EMPTY: return "EMPTY";
+			case Terrain.GRASS: return "GRASS";
+			case Terrain.EMPTY_WELL: return "EMPTY_WELL";
+			case Terrain.WALL: return "WALL";
+			case Terrain.DOOR: return "DOOR";
+			case Terrain.OPEN_DOOR: return "OPEN_DOOR";
+			case Terrain.ENTRANCE: return "ENTRANCE";
+			case Terrain.ENTRANCE_SP: return "ENTRANCE_SP";
+			case Terrain.EXIT: return "EXIT";
+			case Terrain.EMBERS: return "EMBERS";
+			case Terrain.LOCKED_DOOR: return "LOCKED_DOOR";
+			case Terrain.HERO_LKD_DR: return "HERO_LKD_DR";
+			case Terrain.CRYSTAL_DOOR: return "CRYSTAL_DOOR";
+			case Terrain.PEDESTAL: return "PEDESTAL";
+			case Terrain.WALL_DECO: return "WALL_DECO";
+			case Terrain.BARRICADE: return "BARRICADE";
+			case Terrain.EMPTY_SP: return "EMPTY_SP";
+			case Terrain.HIGH_GRASS: return "HIGH_GRASS";
+			case Terrain.FURROWED_GRASS: return "FURROWED_GRASS";
+			case Terrain.SECRET_DOOR: return "SECRET_DOOR";
+			case Terrain.SECRET_TRAP: return "SECRET_TRAP";
+			case Terrain.TRAP: return "TRAP";
+			case Terrain.INACTIVE_TRAP: return "INACTIVE_TRAP";
+			case Terrain.EMPTY_DECO: return "EMPTY_DECO";
+			case Terrain.LOCKED_EXIT: return "LOCKED_EXIT";
+			case Terrain.UNLOCKED_EXIT: return "UNLOCKED_EXIT";
+			case Terrain.WELL: return "WELL";
+			case Terrain.CUSTOM_DECO_EMPTY: return "CUSTOM_DECO_EMPTY";
+			case Terrain.CUSTOM_DECO: return "CUSTOM_DECO";
+			case Terrain.STATUE: return "STATUE";
+			case Terrain.STATUE_SP: return "STATUE_SP";
+			case Terrain.BOOKSHELF: return "BOOKSHELF";
+			case Terrain.ALCHEMY: return "ALCHEMY";
+			case Terrain.WATER: return "WATER";
+			case Terrain.REGION_DECO: return "REGION_DECO";
+			case Terrain.REGION_DECO_ALT: return "REGION_DECO_ALT";
+			case Terrain.MINE_CRYSTAL: return "MINE_CRYSTAL";
+			case Terrain.MINE_BOULDER: return "MINE_BOULDER";
+			default: return "terrain-" + terrain;
 		}
 	}
 	

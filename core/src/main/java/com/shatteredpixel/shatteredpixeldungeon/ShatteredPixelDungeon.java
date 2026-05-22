@@ -31,7 +31,11 @@ import com.watabou.noosa.audio.Sample;
 import com.watabou.utils.DeviceCompat;
 import com.watabou.utils.PlatformSupport;
 
+import java.util.logging.Logger;
+
 public class ShatteredPixelDungeon extends Game {
+
+	private static final Logger LOG = Logger.getLogger(ShatteredPixelDungeon.class.getName());
 
 	//rankings from v1.2.3 and older use a different score formula, so this reference is kept
 	public static final int v1_2_3 = 628;
@@ -46,6 +50,8 @@ public class ShatteredPixelDungeon extends Game {
 	
 	public ShatteredPixelDungeon( PlatformSupport platform ) {
 		super( sceneClass == null ? WelcomeScene.class : sceneClass, platform );
+		LOG.info("ShatteredPixelDungeon constructed: platform="
+				+ (platform == null ? "null" : platform.getClass().getName()));
 
 		//pre-v3.3.0
 		com.watabou.utils.Bundle.addAlias(
@@ -56,26 +62,35 @@ public class ShatteredPixelDungeon extends Game {
 	
 	@Override
 	public void create() {
+		LOG.info("ShatteredPixelDungeon.create: starting core initialization");
 		super.create();
 
 		updateSystemUI();
 		SPDAction.loadBindings();
+		LOG.info("ShatteredPixelDungeon.create: system UI updated and bindings loaded");
 		
 		Music.INSTANCE.enable( SPDSettings.music() );
 		Music.INSTANCE.volume( SPDSettings.musicVol()*SPDSettings.musicVol()/100f );
 		Sample.INSTANCE.enable( SPDSettings.soundFx() );
 		Sample.INSTANCE.volume( SPDSettings.SFXVol()*SPDSettings.SFXVol()/100f );
+		LOG.info("ShatteredPixelDungeon.create: audio settings music=" + SPDSettings.music()
+				+ " musicVol=" + SPDSettings.musicVol()
+				+ " soundFx=" + SPDSettings.soundFx()
+				+ " sfxVol=" + SPDSettings.SFXVol());
 
 		Sample.INSTANCE.load( Assets.Sounds.all );
+		LOG.info("ShatteredPixelDungeon.create: queued " + Assets.Sounds.all.length + " sound assets");
 		
 	}
 
 	@Override
 	public void finish() {
 		if (!DeviceCompat.isiOS()) {
+			LOG.info("ShatteredPixelDungeon.finish: forwarding to Game.finish");
 			super.finish();
 		} else {
 			//can't exit on iOS (Apple guidelines), so just go to title screen
+			LOG.info("ShatteredPixelDungeon.finish: iOS finish redirects to TitleScene");
 			switchScene(TitleScene.class);
 		}
 	}
@@ -113,11 +128,13 @@ public class ShatteredPixelDungeon extends Game {
 	@Override
 	public void resize( int width, int height ) {
 		if (width == 0 || height == 0){
+			LOG.warning("ShatteredPixelDungeon.resize: ignoring zero-sized resize " + width + "x" + height);
 			return;
 		}
 
 		if (scene instanceof PixelScene &&
 				(height != Game.height || width != Game.width)) {
+			LOG.info("ShatteredPixelDungeon.resize: preserving PixelScene windows for " + width + "x" + height);
 			PixelScene.noFade = true;
 			((PixelScene) scene).saveWindows();
 		}
@@ -130,6 +147,7 @@ public class ShatteredPixelDungeon extends Game {
 	
 	@Override
 	public void destroy(){
+		LOG.info("ShatteredPixelDungeon.destroy: ending actor thread and core game");
 		super.destroy();
 		GameScene.endActorThread();
 	}

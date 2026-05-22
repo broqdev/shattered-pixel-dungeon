@@ -96,8 +96,11 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.TimeZone;
+import java.util.logging.Logger;
 
 public class Dungeon {
+
+	private static final Logger LOG = Logger.getLogger(Dungeon.class.getName());
 
 	//enum of items which have limited spawns, records how many have spawned
 	//could all be their own separate numbers, but this allows iterating, much nicer for bundling/initializing.
@@ -228,6 +231,10 @@ public class Dungeon {
 			customSeedText = "";
 			seed = DungeonSeed.randomSeed();
 		}
+		LOG.info("Dungeon.initSeed: seed=" + seed
+				+ " customSeed=" + (customSeedText.isEmpty() ? "<random>" : customSeedText)
+				+ " daily=" + daily
+				+ " dailyReplay=" + dailyReplay);
 	}
 	
 	public static void init() {
@@ -235,6 +242,9 @@ public class Dungeon {
 		initialVersion = version = Game.versionCode;
 		challenges = SPDSettings.challenges();
 		mobsToChampion = 1;
+		LOG.info("Dungeon.init: starting new run version=" + version
+				+ " seed=" + seed
+				+ " challenges=" + challenges);
 
 		Actor.clear();
 		Actor.resetNextID();
@@ -284,6 +294,9 @@ public class Dungeon {
 		Badges.reset();
 		
 		GamesInProgress.selectedClass.initHero( hero );
+		LOG.info("Dungeon.init: hero initialized " + heroSummary(hero)
+				+ " depth=" + depth
+				+ " branch=" + branch);
 	}
 
 	public static boolean isChallenged( int mask ) {
@@ -293,8 +306,51 @@ public class Dungeon {
 	public static boolean levelHasBeenGenerated(int depth, int branch){
 		return generatedLevels.contains(depth + 1000*branch);
 	}
+
+	private static boolean shouldLogLevelBringup(int depth, int branch) {
+		return branch == 0 && (depth == 1 || depth == 2);
+	}
+
+	private static String levelSummary(Level level) {
+		if (level == null) {
+			return "level=null";
+		}
+		return "level=" + level.getClass().getSimpleName()
+				+ " depth=" + depth
+				+ " branch=" + branch
+				+ " size=" + level.width() + "x" + level.height()
+				+ " mobs=" + (level.mobs == null ? 0 : level.mobs.size())
+				+ " heaps=" + sparseSize(level.heaps)
+				+ " blobs=" + (level.blobs == null ? 0 : level.blobs.size())
+				+ " traps=" + sparseSize(level.traps)
+				+ " plants=" + sparseSize(level.plants);
+	}
+
+	private static int sparseSize(SparseArray<?> sparse) {
+		return sparse == null ? 0 : sparse.keyArray().length;
+	}
+
+	private static String heroSummary(Hero hero) {
+		if (hero == null) {
+			return "hero=null";
+		}
+		return "hero=" + hero.heroClass
+				+ "/" + hero.subClass
+				+ " lvl=" + hero.lvl
+				+ " hp=" + hero.HP + "/" + hero.HT
+				+ " pos=" + hero.pos
+				+ " alive=" + hero.isAlive()
+				+ " ready=" + hero.ready;
+	}
 	
 	public static Level newLevel() {
+		boolean logBringup = shouldLogLevelBringup(depth, branch);
+		if (logBringup) {
+			LOG.info("Dungeon.newLevel: selecting level depth=" + depth
+					+ " branch=" + branch
+					+ " seedForDepth=" + seedCurDepth()
+					+ " generatedBefore=" + levelHasBeenGenerated(depth, branch));
+		}
 		
 		Dungeon.level = null;
 		Actor.clear();
@@ -373,6 +429,11 @@ public class Dungeon {
 		} else {
 			level = new DeadEndLevel();
 		}
+		if (logBringup) {
+			LOG.info("Dungeon.newLevel: selected " + level.getClass().getName()
+					+ " depth=" + depth
+					+ " branch=" + branch);
+		}
 
 		//dead end levels (and vault levels for now!) get cleared, don't count as generated
 		if (!(level instanceof DeadEndLevel || level instanceof VaultLevel)){
@@ -396,6 +457,10 @@ public class Dungeon {
 		Statistics.qualifiedForBossRemainsBadge = false;
 		
 		level.create();
+		if (logBringup) {
+			LOG.info("Dungeon.newLevel: created " + levelSummary(level)
+					+ " deepestFloor=" + Statistics.deepestFloor);
+		}
 		
 		if (branch == 0) Statistics.qualifiedForNoKilling = !bossLevel();
 		Statistics.qualifiedForBossChallengeBadge = false;
@@ -462,6 +527,15 @@ public class Dungeon {
 	}
 	
 	public static void switchLevel( final Level level, int pos ) {
+		int requestedPos = pos;
+		boolean logBringup = shouldLogLevelBringup(depth, branch);
+		if (logBringup) {
+			LOG.info("Dungeon.switchLevel: starting depth=" + depth
+					+ " branch=" + branch
+					+ " requestedPos=" + requestedPos
+					+ " " + levelSummary(level)
+					+ " " + heroSummary(hero));
+		}
 
 		//Position of -2 specifically means trying to place the hero the exit
 		if (pos == -2){
@@ -473,6 +547,12 @@ public class Dungeon {
 		// or if they are in invalid terrain terrain (except in the mining level, where that happens normally)
 		if (pos < 0 || pos >= level.length() || level.invalidHeroPos(pos)){
 			pos = level.getTransition(null).cell();
+		}
+		if (logBringup) {
+			LOG.info("Dungeon.switchLevel: resolved hero position requestedPos=" + requestedPos
+					+ " finalPos=" + pos
+					+ " entrance=" + level.entrance()
+					+ " exit=" + level.exit());
 		}
 		
 		PathFinder.setMapSize(level.width(), level.height());
@@ -514,6 +594,13 @@ public class Dungeon {
 			ShatteredPixelDungeon.reportException(e);
 			/*This only catches IO errors. Yes, this means things can go wrong, and they can go wrong catastrophically.
 			But when they do the user will get a nice 'report this issue' dialogue, and I can fix the bug.*/
+		}
+		if (logBringup) {
+			LOG.info("Dungeon.switchLevel: complete depth=" + depth
+					+ " branch=" + branch
+					+ " " + heroSummary(hero)
+					+ " viewDistance=" + hero.viewDistance
+					+ " levelMobs=" + level.mobs.size());
 		}
 	}
 
@@ -824,6 +911,12 @@ public class Dungeon {
 	}
 	
 	public static Level loadLevel( int save ) throws IOException {
+		boolean logBringup = shouldLogLevelBringup(depth, branch);
+		if (logBringup) {
+			LOG.info("Dungeon.loadLevel: loading save=" + save
+					+ " depth=" + depth
+					+ " branch=" + branch);
+		}
 		
 		Dungeon.level = null;
 		Actor.clear();
@@ -835,6 +928,9 @@ public class Dungeon {
 		if (level == null){
 			throw new IOException();
 		} else {
+			if (logBringup) {
+				LOG.info("Dungeon.loadLevel: loaded " + levelSummary(level));
+			}
 			return level;
 		}
 	}

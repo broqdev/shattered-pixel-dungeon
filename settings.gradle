@@ -1,3 +1,12 @@
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+        maven { url 'https://central.sonatype.com/repository/maven-snapshots/' }
+    }
+}
+
 //core game code modules
 include ':SPD-classes'
 include ':core'
@@ -6,6 +15,7 @@ include ':core'
 include ':android'
 include ':ios'
 include ':desktop'
+include ':web'
 
 //service modules
 include ':services'

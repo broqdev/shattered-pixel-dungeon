@@ -438,6 +438,8 @@ public class SPDSettings extends GameSettings {
 	public static final String KEY_WINDOW_HEIGHT    = "window_height";
 	public static final String KEY_WINDOW_MAXIMIZED = "window_maximized";
 	public static final String KEY_FULLSCREEN_MONITOR = "fullscreen_monitor";
+	public static final int DEFAULT_WINDOW_WIDTH    = 800;
+	public static final int DEFAULT_WINDOW_HEIGHT   = 600;
 
 	public static void windowResolution( Point p ){
 		put(KEY_WINDOW_WIDTH, p.x);
@@ -446,8 +448,8 @@ public class SPDSettings extends GameSettings {
 	
 	public static Point windowResolution(){
 		return new Point(
-				getInt( KEY_WINDOW_WIDTH, 800, 720, Integer.MAX_VALUE ),
-				getInt( KEY_WINDOW_HEIGHT, 600, 400, Integer.MAX_VALUE )
+				getInt( KEY_WINDOW_WIDTH, DEFAULT_WINDOW_WIDTH, 720, Integer.MAX_VALUE ),
+				getInt( KEY_WINDOW_HEIGHT, DEFAULT_WINDOW_HEIGHT, 400, Integer.MAX_VALUE )
 		);
 	}
 	

@@ -27,8 +27,11 @@ import com.watabou.glwrap.Texture;
 import com.watabou.noosa.Game;
 
 import java.util.HashMap;
+import java.util.logging.Logger;
 
 public class TextureCache {
+
+	private static final Logger LOG = Logger.getLogger(TextureCache.class.getName());
 	
 	private static HashMap<Object,SmartTexture> all = new HashMap<>();
 
@@ -120,7 +123,18 @@ public class TextureCache {
 			
 		} else {
 
-			SmartTexture tx = new SmartTexture( getBitmap( src ) );
+			if (src instanceof String) {
+				LOG.info("TextureCache.get: loading texture asset " + src);
+			} else if (src instanceof Pixmap) {
+				LOG.info("TextureCache.get: caching runtime pixmap " + sourceName(src));
+			} else {
+				LOG.warning("TextureCache.get: cache miss for non-texture source " + sourceName(src));
+			}
+			Pixmap bitmap = getBitmap( src );
+			if (bitmap == null) {
+				LOG.warning("TextureCache.get: bitmap load returned null for " + sourceName(src));
+			}
+			SmartTexture tx = new SmartTexture( bitmap );
 			all.put( src, tx );
 			return tx;
 		}
@@ -128,6 +142,7 @@ public class TextureCache {
 	}
 	
 	public synchronized static void clear() {
+		LOG.info("TextureCache.clear: deleting " + all.size() + " textures");
 		
 		for (Texture txt : all.values()) {
 			txt.delete();
@@ -137,6 +152,7 @@ public class TextureCache {
 	}
 	
 	public synchronized static void reload() {
+		LOG.info("TextureCache.reload: reloading " + all.size() + " textures");
 		for (SmartTexture tx : all.values()) {
 			tx.reload();
 		}
@@ -149,6 +165,7 @@ public class TextureCache {
 				
 				//libGDX does not support android resource integer handles, and they were
 				//never used by the game anyway, should probably remove this entirely
+				LOG.warning("TextureCache.getBitmap: unsupported integer texture source " + src);
 				return null;
 				
 			} else if (src instanceof String) {
@@ -161,15 +178,25 @@ public class TextureCache {
 				
 			} else {
 				
+				LOG.warning("TextureCache.getBitmap: unsupported texture source " + sourceName(src));
 				return null;
 				
 			}
 		} catch (Exception e) {
 			
+			LOG.log(java.util.logging.Level.WARNING,
+					"TextureCache.getBitmap: failed to load " + sourceName(src), e);
 			Game.reportException(e);
 			return null;
 			
 		}
+	}
+
+	private static String sourceName(Object src) {
+		if (src == null) {
+			return "null";
+		}
+		return src.getClass().getName() + "(" + src + ")";
 	}
 	
 	public synchronized static boolean contains( Object key ) {

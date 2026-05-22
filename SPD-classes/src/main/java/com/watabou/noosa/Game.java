@@ -41,8 +41,11 @@ import com.watabou.utils.Reflection;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.util.logging.Logger;
 
 public class Game implements ApplicationListener {
+
+	private static final Logger LOG = Logger.getLogger(Game.class.getName());
 
 	public static Game instance;
 	
@@ -81,10 +84,14 @@ public class Game implements ApplicationListener {
 		
 		instance = this;
 		this.platform = platform;
+		LOG.info("Game constructed: initialScene=" + sceneName(c)
+				+ " platform=" + (platform == null ? "null" : platform.getClass().getName()));
 	}
 	
 	@Override
 	public void create() {
+		LOG.info("Game.create: starting initialScene=" + sceneName(sceneClass)
+				+ " version=" + version + " versionCode=" + versionCode);
 		density = Gdx.graphics.getDensity();
 		if (density == Float.POSITIVE_INFINITY){
 			density = 100f / 160f; //assume 100PPI if density can't be found
@@ -103,10 +110,15 @@ public class Game implements ApplicationListener {
 				density = realPpiX / 160f;
 			}
 		}
+		LOG.info("Game.create: graphics type=" + Gdx.app.getType()
+				+ " size=" + Gdx.graphics.getWidth() + "x" + Gdx.graphics.getHeight()
+				+ " density=" + density
+				+ " ppi=" + Gdx.graphics.getPpiX() + "x" + Gdx.graphics.getPpiY());
 
 		inputHandler = new InputHandler( Gdx.input );
 		if (ControllerHandler.controllersSupported()){
 			Controllers.addListener(new ControllerHandler());
+			LOG.info("Game.create: controller support enabled");
 		}
 
 		//refreshes texture and vertex data stored on the gpu
@@ -114,6 +126,7 @@ public class Game implements ApplicationListener {
 		Blending.useDefault();
 		TextureCache.reload();
 		Vertexbuffer.reload();
+		LOG.info("Game.create: GL resources initialized");
 	}
 
 	private GLVersion versionContextRef;
@@ -121,12 +134,14 @@ public class Game implements ApplicationListener {
 	@Override
 	public void resize(int width, int height) {
 		if (width == 0 || height == 0){
+			LOG.warning("Game.resize: ignoring zero-sized resize " + width + "x" + height);
 			return;
 		}
 
 		//If the EGL context was destroyed, we need to refresh some data stored on the GPU.
 		// This checks that by seeing if GLVersion has a new object reference
 		if (versionContextRef != Gdx.graphics.getGLVersion()) {
+			LOG.info("Game.resize: GL context changed, reloading graphics resources");
 			versionContextRef = Gdx.graphics.getGLVersion();
 			Blending.useDefault();
 			TextureCache.reload();
@@ -135,6 +150,8 @@ public class Game implements ApplicationListener {
 
 		if (height != Game.height || width != Game.width) {
 
+			LOG.info("Game.resize: " + Game.width + "x" + Game.height + " -> " + width + "x" + height
+					+ " scene=" + sceneName(sceneClass));
 			Game.width = width;
 			Game.height = height;
 			
@@ -185,11 +202,13 @@ public class Game implements ApplicationListener {
 	}
 	
 	public void finish(){
+		LOG.info("Game.finish: requesting app exit");
 		Gdx.app.exit();
 		
 	}
 	
 	public void destroy(){
+		LOG.info("Game.destroy: scene=" + sceneName(scene == null ? null : scene.getClass()));
 		if (scene != null) {
 			scene.destroy();
 			scene = null;
@@ -202,6 +221,7 @@ public class Game implements ApplicationListener {
 	
 	@Override
 	public void dispose() {
+		LOG.info("Game.dispose");
 		destroy();
 	}
 	
@@ -214,6 +234,9 @@ public class Game implements ApplicationListener {
 	}
 	
 	public static void switchScene(Class<? extends Scene> c, SceneChangeCallback callback) {
+		LOG.info("Game.switchScene request: " + sceneName(instance == null ? null : instance.sceneClass)
+				+ " -> " + sceneName(c)
+				+ " callback=" + (callback != null));
 		instance.sceneClass = c;
 		instance.requestedReset = true;
 		instance.onChange = callback;
@@ -235,6 +258,8 @@ public class Game implements ApplicationListener {
 			requestedScene = Reflection.newInstance(sceneClass);
 			if (requestedScene != null){
 				switchScene();
+			} else {
+				LOG.warning("Game.step: failed to instantiate scene " + sceneName(sceneClass));
 			}
 
 		}
@@ -249,6 +274,8 @@ public class Game implements ApplicationListener {
 	protected void switchScene() {
 
 		Camera.reset();
+		LOG.info("Game.switchScene: creating " + sceneName(requestedScene == null ? null : requestedScene.getClass())
+				+ " from " + sceneName(scene == null ? null : scene.getClass()));
 		
 		if (scene != null) {
 			scene.destroy();
@@ -260,6 +287,7 @@ public class Game implements ApplicationListener {
 		scene.create();
 		if (onChange != null) onChange.afterCreate();
 		onChange = null;
+		LOG.info("Game.switchScene: activeScene=" + sceneName(scene == null ? null : scene.getClass()));
 		
 		Game.elapsed = 0f;
 		Game.timeScale = 1f;
@@ -283,6 +311,7 @@ public class Game implements ApplicationListener {
 	}
 	
 	public static void reportException( Throwable tr ) {
+		LOG.log(java.util.logging.Level.SEVERE, "Game.reportException", tr);
 		if (instance != null && Gdx.app != null) {
 			instance.logException(tr);
 		} else {
@@ -301,6 +330,10 @@ public class Game implements ApplicationListener {
 		tr.printStackTrace(pw);
 		pw.flush();
 		Gdx.app.error("GAME", sw.toString());
+	}
+
+	private static String sceneName( Class<?> c ){
+		return c == null ? "null" : c.getName();
 	}
 	
 	public static void runOnRenderThread(Callback c){

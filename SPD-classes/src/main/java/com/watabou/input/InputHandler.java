@@ -26,9 +26,14 @@ import com.badlogic.gdx.InputAdapter;
 import com.badlogic.gdx.InputMultiplexer;
 import com.badlogic.gdx.InputProcessor;
 import com.watabou.noosa.Game;
+import com.watabou.utils.DeviceCompat;
 import com.watabou.utils.PointF;
 
+import java.util.logging.Logger;
+
 public class InputHandler extends InputAdapter {
+
+	private static final Logger LOG = Logger.getLogger(InputHandler.class.getName());
 
 	private InputMultiplexer multiplexer;
 
@@ -137,7 +142,9 @@ public class InputHandler extends InputAdapter {
 	
 	@Override
 	public synchronized boolean keyDown( int keyCode ) {
-		if (KeyBindings.isKeyBound( keyCode )) {
+		boolean bound = KeyBindings.isKeyBound( keyCode );
+		logKeyEvent("keyDown", keyCode, bound);
+		if (bound) {
 			KeyEvent.addKeyEvent( new KeyEvent( keyCode, true ) );
 			return true;
 		} else {
@@ -147,7 +154,9 @@ public class InputHandler extends InputAdapter {
 	
 	@Override
 	public synchronized boolean keyUp( int keyCode ) {
-		if (KeyBindings.isKeyBound( keyCode )) {
+		boolean bound = KeyBindings.isKeyBound( keyCode );
+		logKeyEvent("keyUp", keyCode, bound);
+		if (bound) {
 			KeyEvent.addKeyEvent( new KeyEvent( keyCode, false ) );
 			return true;
 		} else {
@@ -163,5 +172,19 @@ public class InputHandler extends InputAdapter {
 	public boolean scrolled(float amountX, float amountY) {
 		ScrollEvent.addScrollEvent( new ScrollEvent(PointerEvent.currentHoverPos(), amountY));
 		return true;
+	}
+
+	private static void logKeyEvent(String phase, int keyCode, boolean bound) {
+		if (!DeviceCompat.isWeb()) {
+			return;
+		}
+		GameAction action = bound
+				? KeyBindings.getActionForKey(new KeyEvent(keyCode, true))
+				: GameAction.NONE;
+		LOG.info("InputHandler." + phase
+				+ ": code=" + keyCode
+				+ " key=" + KeyBindings.getKeyName(keyCode)
+				+ " bound=" + bound
+				+ " action=" + action.name());
 	}
 }

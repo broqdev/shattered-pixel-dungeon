@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>%TITLE%</title>
+        <meta http-equiv="Content-Type" content="text/html;charset=utf-8">
+        <style>
+            html {
+                width: 100%;
+                height: 100%;
+            }
+
+            body {
+                background: #000;
+                width: 100%;
+                min-height: 100%;
+                margin: 0;
+                padding: 0;
+                overflow: hidden;
+            }
+
+            #game-shell {
+                box-sizing: border-box;
+                display: grid;
+                min-height: 100dvh;
+                padding: 24px;
+                place-items: center;
+                width: 100vw;
+            }
+
+            #game-container {
+                --game-width: 800;
+                --game-height: 600;
+                aspect-ratio: var(--game-width) / var(--game-height);
+                background: #000;
+                box-shadow:
+                    0 0 0 1px rgba(255, 255, 255, 0.14),
+                    0 18px 48px rgba(0, 0, 0, 0.58);
+                max-height: calc(100dvh - 48px);
+                max-width: calc(100vw - 48px);
+                overflow: hidden;
+                width: min(
+                    calc(100vw - 48px),
+                    calc((100dvh - 48px) * var(--game-width) / var(--game-height))
+                );
+            }
+
+            #canvas {
+                background: #000;
+                border: none;
+                display: block;
+                height: 100%;
+                outline: none;
+                touch-action: none;
+                width: 100%;
+            }
+
+            @media (max-width: 640px), (max-height: 640px) {
+                #game-shell {
+                    padding: 8px;
+                }
+
+                #game-container {
+                    max-height: calc(100dvh - 16px);
+                    max-width: calc(100vw - 16px);
+                    width: min(
+                        calc(100vw - 16px),
+                        calc((100dvh - 16px) * var(--game-width) / var(--game-height))
+                    );
+                }
+            }
+        </style>
+    </head>
+    <body oncontextmenu="return false">
+        <main id="game-shell">
+            <div id="game-container">
+                <canvas id="canvas" tabindex="0" width="800" height="600"></canvas>
+            </div>
+        </main>
+        <script>
+            const DEFAULT_GAME_WIDTH = 800;
+            const DEFAULT_GAME_HEIGHT = 600;
+
+            function focusGameCanvas() {
+                const canvas = document.getElementById("canvas");
+                if (canvas && document.activeElement !== canvas) {
+                    canvas.focus({ preventScroll: true });
+                }
+            }
+
+            function syncGameContainerRatio() {
+                const canvas = document.getElementById("canvas");
+                const container = document.getElementById("game-container");
+                if (!canvas || !container) {
+                    return;
+                }
+
+                const width = Number(canvas.getAttribute("width")) || canvas.width || DEFAULT_GAME_WIDTH;
+                const height = Number(canvas.getAttribute("height")) || canvas.height || DEFAULT_GAME_HEIGHT;
+                if (width > 0 && height > 0) {
+                    container.style.setProperty("--game-width", width);
+                    container.style.setProperty("--game-height", height);
+                }
+            }
+
+            function observeGameResolution() {
+                const canvas = document.getElementById("canvas");
+                if (!canvas) {
+                    return;
+                }
+
+                const observer = new MutationObserver(syncGameContainerRatio);
+                observer.observe(canvas, { attributes: true, attributeFilter: ["width", "height"] });
+                window.addEventListener("resize", () => requestAnimationFrame(syncGameContainerRatio));
+            }
+
+            function preventPageKeyHandling(event) {
+                if (document.activeElement === document.getElementById("canvas")
+                        && ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " ", "Tab"].includes(event.key)) {
+                    event.preventDefault();
+                }
+            }
+
+            async function start() {
+                syncGameContainerRatio();
+                observeGameResolution();
+                focusGameCanvas();
+                %MODE%
+                requestAnimationFrame(() => {
+                    syncGameContainerRatio();
+                    focusGameCanvas();
+                });
+            }
+
+            window.addEventListener("load", start);
+            window.addEventListener("focus", focusGameCanvas);
+            window.addEventListener("keydown", preventPageKeyHandling, { capture: true });
+            window.addEventListener("keyup", preventPageKeyHandling, { capture: true });
+            document.addEventListener("pointerdown", focusGameCanvas, { capture: true });
+        </script>
+        %JS_SCRIPT%
+    </body>
+</html>

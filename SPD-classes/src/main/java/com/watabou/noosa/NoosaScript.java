@@ -44,6 +44,8 @@ public class NoosaScript extends Script {
 	public Attribute aUV;
 	
 	private Camera lastCamera;
+	private Vertexbuffer clientBuffer;
+	private int clientBufferCapacity;
 	
 	public NoosaScript() {
 
@@ -75,11 +77,7 @@ public class NoosaScript extends Script {
 
 	public void drawElements( FloatBuffer vertices, ShortBuffer indices, int size ) {
 
-		((Buffer)vertices).position( 0 );
-		aXY.vertexPointer( 2, 4, vertices );
-
-		((Buffer)vertices).position( 2 );
-		aUV.vertexPointer( 2, 4, vertices );
+		bindClientVertices( vertices );
 
 		Quad.releaseIndices();
 		Gdx.gl20.glDrawElements( Gdx.gl20.GL_TRIANGLES, size, Gdx.gl20.GL_UNSIGNED_SHORT, indices );
@@ -88,11 +86,7 @@ public class NoosaScript extends Script {
 
 	public void drawQuad( FloatBuffer vertices ) {
 
-		((Buffer)vertices).position( 0 );
-		aXY.vertexPointer( 2, 4, vertices );
-
-		((Buffer)vertices).position( 2 );
-		aUV.vertexPointer( 2, 4, vertices );
+		bindClientVertices( vertices );
 		
 		Gdx.gl20.glDrawElements( Gdx.gl20.GL_TRIANGLES, Quad.SIZE, Gdx.gl20.GL_UNSIGNED_SHORT, 0 );
 	}
@@ -117,13 +111,28 @@ public class NoosaScript extends Script {
 			return;
 		}
 
-		((Buffer)vertices).position( 0 );
-		aXY.vertexPointer( 2, 4, vertices );
-
-		((Buffer)vertices).position( 2 );
-		aUV.vertexPointer( 2, 4, vertices );
+		bindClientVertices( vertices );
 		
 		Gdx.gl20.glDrawElements( Gdx.gl20.GL_TRIANGLES, Quad.SIZE * size, Gdx.gl20.GL_UNSIGNED_SHORT, 0 );
+	}
+
+	private void bindClientVertices( FloatBuffer vertices ) {
+		((Buffer)vertices).position( 0 );
+		if (clientBuffer == null || clientBuffer.isDeleted() || clientBufferCapacity < vertices.limit()) {
+			if (clientBuffer != null && !clientBuffer.isDeleted()) {
+				clientBuffer.delete();
+			}
+			clientBuffer = new Vertexbuffer( vertices );
+			clientBufferCapacity = vertices.limit();
+		} else {
+			clientBuffer.updateVertices( vertices );
+		}
+
+		clientBuffer.updateGLData();
+		clientBuffer.bind();
+		aXY.vertexBuffer( 2, 4, 0 );
+		aUV.vertexBuffer( 2, 4, 2 );
+		clientBuffer.release();
 	}
 
 	public void drawQuadSet( Vertexbuffer buffer, int length, int offset ){

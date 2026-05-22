@@ -274,9 +274,9 @@ public class DungeonTileSheet {
 
 
 	public static int getRaisedDoorTile(int tile, int below){
-		if (wallStitcheable(below))             return RAISED_DOOR_SIDEWAYS;
+		if (tile == Terrain.OPEN_DOOR)          return DungeonTileSheet.RAISED_DOOR_OPEN;
+		else if (wallStitcheable(below))        return RAISED_DOOR_SIDEWAYS;
 		else if (tile == Terrain.DOOR)          return DungeonTileSheet.RAISED_DOOR;
-		else if (tile == Terrain.OPEN_DOOR)     return DungeonTileSheet.RAISED_DOOR_OPEN;
 		else if (tile == Terrain.LOCKED_DOOR)   return DungeonTileSheet.RAISED_DOOR_LOCKED;
 		else if (tile == Terrain.HERO_LKD_DR)   return DungeonTileSheet.RAISED_DOOR_LOCKED;
 		else if (tile == Terrain.CRYSTAL_DOOR)  return DungeonTileSheet.RAISED_DOOR_CRYSTAL;

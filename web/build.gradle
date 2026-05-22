@@ -1,0 +1,59 @@
+import org.teavm.gradle.api.OptimizationLevel
+
+plugins {
+    id 'java'
+    id 'org.teavm' version '0.14.0'
+}
+
+[compileJava, compileTestJava]*.options*.encoding = 'UTF-8'
+java.sourceCompatibility = java.targetCompatibility = appJavaCompatibility
+
+ext.appMainClass = "com.shatteredpixel.shatteredpixeldungeon.web.WebLauncher"
+ext.gdxTeaVMVersion = "1.5.6"
+
+dependencies {
+    implementation project(':core')
+
+    implementation "com.badlogicgames.gdx:gdx-freetype:$gdxVersion"
+    implementation "com.github.xpenatan.gdx-teavm:backend-web:$gdxTeaVMVersion"
+    implementation "com.github.xpenatan.gdx-teavm:gdx-freetype-teavm:$gdxTeaVMVersion"
+    implementation "com.github.xpenatan.gdx-teavm:gdx-controllers-teavm:$gdxTeaVMVersion"
+}
+
+teavm {
+    all {
+        mainClass = appMainClass
+        debugInformation = true
+        optimization = OptimizationLevel.NONE
+    }
+    js {
+        relativePathInOutputDir = "webapp/js"
+        targetFileName = "dungeon.js"
+        sourceMap = true
+        obfuscated = false
+    }
+    wasmGC {
+        relativePathInOutputDir = "webapp/wasm"
+        targetFileName = "dungeon.wasm"
+        sourceMap = true
+        obfuscated = false
+        copyRuntime = true
+    }
+}
+
+tasks.register('buildWebBundle', JavaExec) {
+    group = 'teavm'
+    description = 'Builds the libGDX TeaVM browser bundle with copied Shattered Pixel Dungeon assets.'
+    dependsOn classes
+    workingDir = projectDir
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.shatteredpixel.shatteredpixeldungeon.web.BuildWeb'
+}
+
+tasks.register('serveWebBundle', Exec) {
+    group = 'teavm'
+    description = 'Serves the generated TeaVM browser bundle on http://127.0.0.1:8080/.'
+    dependsOn buildWebBundle
+    workingDir = layout.buildDirectory.dir('dist/webapp').get().asFile
+    commandLine 'python3', '-m', 'http.server', '8080', '--bind', '127.0.0.1'
+}

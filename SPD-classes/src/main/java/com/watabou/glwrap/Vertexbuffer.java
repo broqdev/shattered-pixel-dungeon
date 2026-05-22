@@ -22,6 +22,7 @@
 package com.watabou.glwrap;
 
 import com.badlogic.gdx.Gdx;
+import com.watabou.utils.DeviceCompat;
 
 import java.nio.Buffer;
 import java.nio.FloatBuffer;
@@ -32,6 +33,7 @@ public class Vertexbuffer {
 	private int id;
 	private FloatBuffer vertices;
 	private int updateStart, updateEnd;
+	private boolean deleted;
 
 	private static final ArrayList<Vertexbuffer> buffers = new ArrayList<>();
 
@@ -79,13 +81,28 @@ public class Vertexbuffer {
 		bind();
 
 		if (updateStart == 0 && updateEnd == vertices.limit()){
-			Gdx.gl.glBufferData(Gdx.gl.GL_ARRAY_BUFFER, vertices.limit()*4, vertices, Gdx.gl.GL_DYNAMIC_DRAW);
+			FloatBuffer update = DeviceCompat.isWeb() ? slice(vertices, 0, vertices.limit()) : vertices;
+			((Buffer)update).position(0);
+			Gdx.gl.glBufferData(Gdx.gl.GL_ARRAY_BUFFER, update.limit()*4, update, Gdx.gl.GL_DYNAMIC_DRAW);
+		} else if (DeviceCompat.isWeb()) {
+			// TeaVM's WebGL bridge exposes the whole Buffer view to bufferSubData,
+			// ignoring the Java Buffer position and size args. A sliced view keeps
+			// web partial updates aligned with desktop GL semantics.
+			FloatBuffer update = slice(vertices, updateStart, updateEnd);
+			Gdx.gl.glBufferSubData(Gdx.gl.GL_ARRAY_BUFFER, updateStart*4, (updateEnd - updateStart)*4, update);
 		} else {
 			Gdx.gl.glBufferSubData(Gdx.gl.GL_ARRAY_BUFFER, updateStart*4, (updateEnd - updateStart)*4, vertices);
 		}
 
 		release();
 		updateStart = updateEnd = -1;
+	}
+
+	private static FloatBuffer slice(FloatBuffer buffer, int start, int end) {
+		FloatBuffer update = buffer.duplicate();
+		((Buffer)update).position(start);
+		((Buffer)update).limit(end);
+		return update.slice();
 	}
 
 	public void bind(){
@@ -100,7 +117,12 @@ public class Vertexbuffer {
 		synchronized (buffers) {
 			Gdx.gl.glDeleteBuffer( id );
 			buffers.remove(this);
+			deleted = true;
 		}
+	}
+
+	public boolean isDeleted(){
+		return deleted;
 	}
 
 	public static void clear(){
