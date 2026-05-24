@@ -26,6 +26,7 @@ import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.PixmapPacker;
 import com.badlogic.gdx.graphics.g2d.freetype.FreeTypeFontGenerator;
+import com.github.xpenatan.gdx.teavm.backends.web.WebApplication;
 import com.shatteredpixel.shatteredpixeldungeon.SPDSettings;
 import com.watabou.utils.Point;
 import com.watabou.utils.PlatformSupport;
@@ -44,6 +45,8 @@ public class WebPlatformSupport extends PlatformSupport {
 	private final Pattern regularSplitterMultiline = Pattern.compile(
 			"(?<= )|(?= )|(?<=\n)|(?=\n)|(?<=_)|(?=_)|(?<=\\*\\*)|(?=\\*\\*)");
 
+	private boolean defaultUiApplied;
+
 	@Override
 	public void updateDisplaySize() {
 		Point resolution = SPDSettings.windowResolution();
@@ -59,6 +62,12 @@ public class WebPlatformSupport extends PlatformSupport {
 
 	@Override
 	public void updateSystemUI() {
+		if (!defaultUiApplied) {
+			defaultUiApplied = true;
+			if (!WebApplication.isMobileDevice() && !SPDSettings.contains(SPDSettings.KEY_UI_SIZE)) {
+				SPDSettings.interfaceSize(2);
+			}
+		}
 		// Browser chrome and safe-area behavior are owned by the page.
 	}
 

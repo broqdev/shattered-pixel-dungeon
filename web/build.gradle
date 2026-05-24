@@ -24,7 +24,9 @@ teavm {
     all {
         mainClass = appMainClass
         debugInformation = true
+        fastGlobalAnalysis = true
         optimization = OptimizationLevel.NONE
+        processMemory = 2048
     }
     js {
         relativePathInOutputDir = "webapp/js"
@@ -48,6 +50,20 @@ tasks.register('buildWebBundle', JavaExec) {
     workingDir = projectDir
     classpath = sourceSets.main.runtimeClasspath
     mainClass = 'com.shatteredpixel.shatteredpixeldungeon.web.BuildWeb'
+    inputs.files(sourceSets.main.runtimeClasspath)
+            .withPropertyName('runtimeClasspath')
+            .withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.dir('../core/src/main/assets')
+            .withPropertyName('coreAssets')
+            .withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.dir('../desktop/src/main/assets')
+            .withPropertyName('desktopAssets')
+            .withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.file('src/main/resources/webapp/index.html')
+            .withPropertyName('webappTemplate')
+            .withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.property('mainClass', appMainClass)
+    outputs.dir(layout.buildDirectory.dir('dist'))
 }
 
 tasks.register('serveWebBundle', Exec) {
@@ -55,5 +71,5 @@ tasks.register('serveWebBundle', Exec) {
     description = 'Serves the generated TeaVM browser bundle on http://127.0.0.1:8080/.'
     dependsOn buildWebBundle
     workingDir = layout.buildDirectory.dir('dist/webapp').get().asFile
-    commandLine 'python3', '-m', 'http.server', '8080', '--bind', '127.0.0.1'
+    commandLine "${System.properties['java.home']}/bin/java", '-m', 'jdk.httpserver', '-b', '127.0.0.1', '-p', '8080'
 }

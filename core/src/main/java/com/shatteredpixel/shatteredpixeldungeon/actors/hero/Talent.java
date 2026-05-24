@@ -1206,6 +1206,13 @@ public enum Talent {
 							Talent talent = Talent.valueOf(tName);
 							if (tier.containsKey(talent)) {
 								tier.put(talent, Math.min(points, talent.maxPoints()));
+							} else {
+								for (Talent tierTalent : tier.keySet()) {
+									if (tierTalent != null && tierTalent.name().equals(tName)) {
+										tier.put(tierTalent, Math.min(points, tierTalent.maxPoints()));
+										break;
+									}
+								}
 							}
 						} catch (Exception e) {
 							ShatteredPixelDungeon.reportException(e);

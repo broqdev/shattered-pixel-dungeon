@@ -109,6 +109,8 @@ public class Game implements ApplicationListener {
 				float realPpiX = dispWidth / reportedHeight;
 				density = realPpiX / 160f;
 			}
+		} else if (DeviceCompat.isWeb()) {
+			density = Math.max(1f, density);
 		}
 		LOG.info("Game.create: graphics type=" + Gdx.app.getType()
 				+ " size=" + Gdx.graphics.getWidth() + "x" + Gdx.graphics.getHeight()
