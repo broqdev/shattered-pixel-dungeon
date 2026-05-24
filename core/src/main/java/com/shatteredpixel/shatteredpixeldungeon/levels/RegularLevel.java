@@ -82,6 +82,7 @@ import com.shatteredpixel.shatteredpixeldungeon.levels.traps.WornDartTrap;
 import com.shatteredpixel.shatteredpixeldungeon.mechanics.ShadowCaster;
 import com.watabou.utils.BArray;
 import com.watabou.utils.Bundle;
+import com.watabou.utils.DeviceCompat;
 import com.watabou.utils.PathFinder;
 import com.watabou.utils.Point;
 import com.watabou.utils.Random;
@@ -91,8 +92,11 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.logging.Logger;
 
 public abstract class RegularLevel extends Level {
+
+	private static final Logger LOG = Logger.getLogger(RegularLevel.class.getName());
 	
 	protected ArrayList<Room> rooms;
 	
@@ -888,6 +892,7 @@ public abstract class RegularLevel extends Level {
 	public void storeInBundle( Bundle bundle ) {
 		super.storeInBundle( bundle );
 		bundle.put( "rooms", rooms );
+		webParityLog("regularLevel store rooms " + roomRestoreSnapshot());
 	}
 	
 	@SuppressWarnings("unchecked")
@@ -903,6 +908,37 @@ public abstract class RegularLevel extends Level {
 			} else if (r.isExit()){
 				roomExit = r;
 			}
+		}
+		webParityLog("regularLevel restore rooms " + roomRestoreSnapshot());
+	}
+
+	private String roomRestoreSnapshot() {
+		int specialRooms = 0;
+		StringBuilder roomClasses = new StringBuilder();
+		for (Room r : rooms) {
+			if (r instanceof SpecialRoom) {
+				specialRooms++;
+			}
+			if (roomClasses.length() > 0) {
+				roomClasses.append(',');
+			}
+			roomClasses.append(r.getClass().getSimpleName());
+		}
+		return "depth=" + Dungeon.depth
+				+ " branch=" + Dungeon.branch
+				+ " level=" + getClass().getName()
+				+ " width=" + width()
+				+ " height=" + height()
+				+ " entrance=" + entrance()
+				+ " exit=" + exit()
+				+ " roomCount=" + rooms.size()
+				+ " specialRooms=" + specialRooms
+				+ " roomClasses=" + roomClasses;
+	}
+
+	private static void webParityLog(String message) {
+		if (DeviceCompat.webParityLoggingEnabled()) {
+			LOG.info("[WEB-PARITY] " + message);
 		}
 	}
 	

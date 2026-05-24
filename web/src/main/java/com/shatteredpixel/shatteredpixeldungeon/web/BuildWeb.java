@@ -28,10 +28,26 @@ import com.github.xpenatan.gdx.teavm.backends.web.config.backend.WebBackend;
 import org.teavm.vm.TeaVMOptimizationLevel;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 public class BuildWeb {
 
+	private static final String WEB_PARITY_LOGGING_PLACEHOLDER = "%WEB_PARITY_LOGGING%";
+
 	public static void main(String[] args) {
+		boolean release = false;
+		File outputDir = new File("build/dist");
+		for (int i = 0; i < args.length; i++) {
+			if ("--release".equals(args[i])) {
+				release = true;
+			} else if ("--output".equals(args[i]) && i + 1 < args.length) {
+				outputDir = new File(args[++i]);
+			}
+		}
+
 		WebBackend backend = new WebBackend()
 				.setHtmlTitle("Shattered Pixel Dungeon")
 				.setHtmlWidth(1280)
@@ -45,9 +61,27 @@ public class BuildWeb {
 				.addReflectionClass("com.watabou.**")
 				.setMainClass("com.shatteredpixel.shatteredpixeldungeon.web.WebLauncher")
 				.setOutputName("dungeon")
-				.setDebugInformationGenerated(true)
+				.setDebugInformationGenerated(!release)
+				.setSourceMapsFileGenerated(!release)
 				.setOptimizationLevel(TeaVMOptimizationLevel.SIMPLE)
 				.setObfuscated(false)
-				.build(new File("build/dist"));
+				.build(outputDir);
+
+		configureWebParityLogging(outputDir, !release);
+	}
+
+	private static void configureWebParityLogging(File outputDir, boolean enabled) {
+		Path index = new File(new File(outputDir, "webapp"), "index.html").toPath();
+		try {
+			String html = Files.readString(index, StandardCharsets.UTF_8);
+			if (!html.contains(WEB_PARITY_LOGGING_PLACEHOLDER)) {
+				throw new IllegalStateException("Missing " + WEB_PARITY_LOGGING_PLACEHOLDER + " in " + index);
+			}
+			Files.writeString(index,
+					html.replace(WEB_PARITY_LOGGING_PLACEHOLDER, Boolean.toString(enabled)),
+					StandardCharsets.UTF_8);
+		} catch (IOException e) {
+			throw new RuntimeException("Unable to configure web parity logging in " + index, e);
+		}
 	}
 }

@@ -18,6 +18,8 @@ dependencies {
     implementation "com.github.xpenatan.gdx-teavm:backend-web:$gdxTeaVMVersion"
     implementation "com.github.xpenatan.gdx-teavm:gdx-freetype-teavm:$gdxTeaVMVersion"
     implementation "com.github.xpenatan.gdx-teavm:gdx-controllers-teavm:$gdxTeaVMVersion"
+
+    testImplementation "junit:junit:4.13.2"
 }
 
 teavm {
@@ -64,6 +66,54 @@ tasks.register('buildWebBundle', JavaExec) {
             .withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.property('mainClass', appMainClass)
     outputs.dir(layout.buildDirectory.dir('dist'))
+}
+
+tasks.register('buildWebReleaseBundle', JavaExec) {
+    group = 'teavm'
+    description = 'Builds an optimized static TeaVM browser bundle for release.'
+    dependsOn classes
+    workingDir = projectDir
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.shatteredpixel.shatteredpixeldungeon.web.BuildWeb'
+    args '--release', '--output', layout.buildDirectory.dir('release').get().asFile.absolutePath
+    inputs.files(sourceSets.main.runtimeClasspath)
+            .withPropertyName('runtimeClasspath')
+            .withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.dir('../core/src/main/assets')
+            .withPropertyName('coreAssets')
+            .withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.dir('../desktop/src/main/assets')
+            .withPropertyName('desktopAssets')
+            .withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.file('src/main/resources/webapp/index.html')
+            .withPropertyName('webappTemplate')
+            .withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.property('mainClass', appMainClass)
+    inputs.property('release', true)
+    outputs.dir(layout.buildDirectory.dir('release'))
+    doFirst {
+        delete layout.buildDirectory.dir('release')
+    }
+    doLast {
+        delete fileTree(layout.buildDirectory.dir('release')) {
+            include '**/*.teavmdbg'
+            include '**/*.map'
+            include '**/.DS_Store'
+        }
+        delete layout.buildDirectory.dir('release/webapp/WEB-INF')
+    }
+}
+
+tasks.register('zipWebReleaseBundle', Zip) {
+    group = 'teavm'
+    description = 'Packages the optimized static TeaVM web release bundle as a zip.'
+    dependsOn buildWebReleaseBundle
+    archiveFileName = 'shattered-pixel-dungeon-web-release.zip'
+    destinationDirectory = layout.buildDirectory.dir('release-zip')
+    from(layout.buildDirectory.dir('release/webapp')) {
+        into 'shattered-pixel-dungeon-web'
+        exclude '**/*.teavmdbg', '**/*.map', '**/.DS_Store', 'WEB-INF/**'
+    }
 }
 
 tasks.register('serveWebBundle', Exec) {

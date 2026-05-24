@@ -23,8 +23,8 @@ package com.shatteredpixel.shatteredpixeldungeon;
 
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroSubClass;
-import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
 import com.watabou.utils.Bundle;
+import com.watabou.utils.DeviceCompat;
 import com.watabou.utils.FileUtils;
 
 import java.io.IOException;
@@ -32,8 +32,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.Locale;
+import java.util.logging.Logger;
 
 public class GamesInProgress {
+
+	private static final Logger LOG = Logger.getLogger(GamesInProgress.class.getName());
 	
 	public static final int MAX_SLOTS = HeroClass.values().length;
 	
@@ -50,12 +54,20 @@ public class GamesInProgress {
 	private static final String DEPTH_BRANCH_FILE	= "depth%d-branch%d.dat";
 	
 	public static boolean gameExists( int slot ){
-		return FileUtils.dirExists(gameFolder(slot))
-				&& FileUtils.fileLength(gameFile(slot)) > 1;
+		boolean dirExists = FileUtils.dirExists(gameFolder(slot));
+		long gameFileLength = FileUtils.fileLength(gameFile(slot));
+		boolean exists = dirExists && gameFileLength > 1;
+		webParityLog("gameExists slot=" + slot
+				+ " exists=" + exists
+				+ " dir=" + gameFolder(slot)
+				+ " dirExists=" + dirExists
+				+ " gameFile=" + gameFile(slot)
+				+ " fileLength=" + gameFileLength);
+		return exists;
 	}
 	
 	public static String gameFolder( int slot ){
-		return Messages.format(GAME_FOLDER, slot);
+		return String.format(Locale.ENGLISH, GAME_FOLDER, slot);
 	}
 	
 	public static String gameFile( int slot ){
@@ -64,9 +76,9 @@ public class GamesInProgress {
 	
 	public static String depthFile( int slot, int depth, int branch ) {
 		if (branch == 0) {
-			return gameFolder(slot) + "/" + Messages.format(DEPTH_FILE, depth);
+			return gameFolder(slot) + "/" + String.format(Locale.ENGLISH, DEPTH_FILE, depth);
 		} else {
-			return gameFolder(slot) + "/" + Messages.format(DEPTH_BRANCH_FILE, depth, branch);
+			return gameFolder(slot) + "/" + String.format(Locale.ENGLISH, DEPTH_BRANCH_FILE, depth, branch);
 		}
 	}
 	
@@ -78,6 +90,7 @@ public class GamesInProgress {
 	}
 	
 	public static ArrayList<Info> checkAll(){
+		webParityLog("checkAll begin");
 		ArrayList<Info> result = new ArrayList<>();
 		for (int i = 1; i <= MAX_SLOTS; i++){
 			Info curr = check(i);
@@ -92,6 +105,7 @@ public class GamesInProgress {
 				break;
 		}
 
+		webParityLog("checkAll complete count=" + result.size() + " slots=" + slotSummary(result));
 		return result;
 	}
 	
@@ -99,11 +113,14 @@ public class GamesInProgress {
 		
 		if (slotStates.containsKey( slot )) {
 			
-			return slotStates.get( slot );
+			Info cached = slotStates.get( slot );
+			webParityLog("check slot=" + slot + " cached=" + infoSummary(cached));
+			return cached;
 			
 		} else if (!gameExists( slot )) {
 			
 			slotStates.put(slot, null);
+			webParityLog("check slot=" + slot + " missing");
 			return null;
 			
 		} else {
@@ -123,13 +140,16 @@ public class GamesInProgress {
 				}
 
 			} catch (IOException e) {
+				webParityLog("check slot=" + slot + " readFailed=" + e.getClass().getName());
 				info = null;
 			} catch (Exception e){
 				ShatteredPixelDungeon.reportException( e );
+				webParityLog("check slot=" + slot + " previewFailed=" + e.getClass().getName());
 				info = null;
 			}
 			
 			slotStates.put( slot, info );
+			webParityLog("check slot=" + slot + " loaded=" + infoSummary(info));
 			return info;
 			
 		}
@@ -164,14 +184,43 @@ public class GamesInProgress {
 		info.maxDepth = Statistics.deepestFloor;
 
 		slotStates.put( slot, info );
+		webParityLog("set slot=" + slot + " " + infoSummary(info));
 	}
 	
 	public static void setUnknown( int slot ) {
 		slotStates.remove( slot );
+		webParityLog("setUnknown slot=" + slot);
 	}
 	
 	public static void delete( int slot ) {
 		slotStates.put( slot, null );
+		webParityLog("delete slot=" + slot);
+	}
+
+	private static void webParityLog(String message) {
+		if (DeviceCompat.webParityLoggingEnabled()) {
+			LOG.info("[WEB-PARITY] " + message);
+		}
+	}
+
+	private static String slotSummary(ArrayList<Info> infos) {
+		StringBuilder summary = new StringBuilder();
+		for (Info info : infos) {
+			if (summary.length() > 0) summary.append(',');
+			summary.append(info.slot);
+		}
+		return summary.toString();
+	}
+
+	private static String infoSummary(Info info) {
+		if (info == null) {
+			return "null";
+		}
+		return "slot=" + info.slot
+				+ " depth=" + info.depth
+				+ " level=" + info.level
+				+ " heroClass=" + info.heroClass
+				+ " lastPlayed=" + info.lastPlayed;
 	}
 	
 	public static class Info {

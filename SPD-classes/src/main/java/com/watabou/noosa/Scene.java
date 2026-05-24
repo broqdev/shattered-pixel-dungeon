@@ -58,6 +58,10 @@ public class Scene extends Group {
 	
 	}
 
+	public boolean readyForSceneSwitch() {
+		return true;
+	}
+
 	@Override
 	public void update() {
 		super.update();

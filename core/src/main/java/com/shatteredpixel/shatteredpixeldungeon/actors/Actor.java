@@ -238,7 +238,22 @@ public abstract class Actor implements Bundlable {
 	public static int curActorPriority() {
 		return current != null ? current.actPriority : HERO_PRIO;
 	}
-	
+
+	public static String currentDebugName() {
+		Actor actor = current;
+		return actor == null ? "none" : actor.getClass().getName();
+	}
+
+	public static void notifySpriteWaiters() {
+		for (Char ch : chars()) {
+			if (ch.sprite != null) {
+				synchronized (ch.sprite) {
+					ch.sprite.notifyAll();
+				}
+			}
+		}
+	}
+
 	public static boolean keepActorThreadAlive = true;
 	
 	public static void process() {
@@ -246,83 +261,91 @@ public abstract class Actor implements Bundlable {
 		boolean doNext;
 		boolean interrupted = false;
 
-		do {
-			
-			current = null;
-			if (!interrupted && !Game.switchingScene()) {
-				float earliest = Float.MAX_VALUE;
+		try {
+			do {
+				current = null;
+				if (!interrupted && !Game.switchingScene()) {
+					float earliest = Float.MAX_VALUE;
 
-				synchronized (Actor.class) {
-					for (Actor actor : all) {
+					synchronized (Actor.class) {
+						for (Actor actor : all) {
 
-						//some actors will always go before others if time is equal.
-						if (actor.time < earliest ||
-								actor.time == earliest && (current == null || actor.actPriority > current.actPriority)) {
-							earliest = actor.time;
-							current = actor;
-						}
-
-					}
-				}
-			}
-
-			if  (current != null) {
-
-				now = current.time;
-				Actor acting = current;
-
-				if (acting instanceof Char && ((Char) acting).sprite != null) {
-					// If it's character's turn to act, but its sprite
-					// is moving, wait till the movement is over
-					try {
-						synchronized (((Char)acting).sprite) {
-							if (((Char)acting).sprite.isMoving) {
-								((Char) acting).sprite.wait();
+							//some actors will always go before others if time is equal.
+							if (actor.time < earliest ||
+									actor.time == earliest && (current == null || actor.actPriority > current.actPriority)) {
+								earliest = actor.time;
+								current = actor;
 							}
+
 						}
-					} catch (InterruptedException e) {
-						interrupted = true;
 					}
 				}
+
+				if  (current != null) {
+
+					now = current.time;
+					Actor acting = current;
+
+					if (acting instanceof Char && ((Char) acting).sprite != null) {
+						// If it's character's turn to act, but its sprite
+						// is moving, wait till the movement is over
+						try {
+							synchronized (((Char) acting).sprite) {
+								if (((Char) acting).sprite.isMoving && keepActorThreadAlive) {
+									((Char) acting).sprite.wait();
+								}
+							}
+						} catch (InterruptedException e) {
+							interrupted = true;
+						}
+					}
 				
-				interrupted = interrupted || Thread.interrupted();
+					interrupted = interrupted || Thread.interrupted() || !keepActorThreadAlive;
 				
-				if (interrupted){
-					doNext = false;
-					current = null;
-				} else {
-					doNext = acting.act();
-					if (doNext && (Dungeon.hero == null || !Dungeon.hero.isAlive())) {
+					if (interrupted){
 						doNext = false;
 						current = null;
+					} else {
+						doNext = acting.act();
+						if (doNext && (Dungeon.hero == null || !Dungeon.hero.isAlive())) {
+							doNext = false;
+							current = null;
+						}
+					}
+				} else {
+					doNext = false;
+				}
+
+				if (!doNext){
+					synchronized (Thread.currentThread()) {
+					
+						interrupted = interrupted || Thread.interrupted();
+					
+						if (interrupted || !keepActorThreadAlive){
+							current = null;
+							interrupted = false;
+						}
+
+						//signals to the gamescene that actor processing is finished for now
+						Thread.currentThread().notify();
+
+						if (keepActorThreadAlive) {
+							try {
+								Thread.currentThread().wait();
+							} catch (InterruptedException e) {
+								interrupted = true;
+							}
+						}
 					}
 				}
-			} else {
-				doNext = false;
+
+			} while (keepActorThreadAlive);
+		} finally {
+			current = null;
+			synchronized (Thread.currentThread()) {
+				Thread.currentThread().notify();
 			}
-
-			if (!doNext){
-				synchronized (Thread.currentThread()) {
-					
-					interrupted = interrupted || Thread.interrupted();
-					
-					if (interrupted){
-						current = null;
-						interrupted = false;
-					}
-
-					//signals to the gamescene that actor processing is finished for now
-					Thread.currentThread().notify();
-					
-					try {
-						Thread.currentThread().wait();
-					} catch (InterruptedException e) {
-						interrupted = true;
-					}
-				}
-			}
-
-		} while (keepActorThreadAlive);
+		}
 	}
 	
 	public static void add( Actor actor ) {

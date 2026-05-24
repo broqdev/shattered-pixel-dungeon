@@ -140,10 +140,12 @@ public class InputHandler extends InputAdapter {
 	// *** Key Input ***
 	// *****************
 	
-	@Override
-	public synchronized boolean keyDown( int keyCode ) {
-		boolean bound = KeyBindings.isKeyBound( keyCode );
-		logKeyEvent("keyDown", keyCode, bound);
+		@Override
+		public synchronized boolean keyDown( int keyCode ) {
+			boolean bound = KeyBindings.isKeyBound( keyCode );
+			if (DeviceCompat.webParityLoggingEnabled()) {
+				LOG.info("[WEB-PARITY] InputHandler.keyDown keyCode=" + keyCode + " bound=" + bound);
+			}
 		if (bound) {
 			KeyEvent.addKeyEvent( new KeyEvent( keyCode, true ) );
 			return true;
@@ -152,10 +154,12 @@ public class InputHandler extends InputAdapter {
 		}
 	}
 	
-	@Override
-	public synchronized boolean keyUp( int keyCode ) {
-		boolean bound = KeyBindings.isKeyBound( keyCode );
-		logKeyEvent("keyUp", keyCode, bound);
+		@Override
+		public synchronized boolean keyUp( int keyCode ) {
+			boolean bound = KeyBindings.isKeyBound( keyCode );
+			if (DeviceCompat.webParityLoggingEnabled()) {
+				LOG.info("[WEB-PARITY] InputHandler.keyUp keyCode=" + keyCode + " bound=" + bound);
+			}
 		if (bound) {
 			KeyEvent.addKeyEvent( new KeyEvent( keyCode, false ) );
 			return true;
@@ -172,19 +176,5 @@ public class InputHandler extends InputAdapter {
 	public boolean scrolled(float amountX, float amountY) {
 		ScrollEvent.addScrollEvent( new ScrollEvent(PointerEvent.currentHoverPos(), amountY));
 		return true;
-	}
-
-	private static void logKeyEvent(String phase, int keyCode, boolean bound) {
-		if (!DeviceCompat.isWeb()) {
-			return;
-		}
-		GameAction action = bound
-				? KeyBindings.getActionForKey(new KeyEvent(keyCode, true))
-				: GameAction.NONE;
-		LOG.info("InputHandler." + phase
-				+ ": code=" + keyCode
-				+ " key=" + KeyBindings.getKeyName(keyCode)
-				+ " bound=" + bound
-				+ " action=" + action.name());
 	}
 }

@@ -29,15 +29,9 @@ import com.shatteredpixel.shatteredpixeldungeon.ShatteredPixelDungeon;
 import com.watabou.noosa.Game;
 import com.watabou.utils.FileUtils;
 
-import java.util.logging.Logger;
-
 public class WebLauncher {
 
-	private static final Logger log = Logger.getLogger(WebLauncher.class.getName());
-
 	public static void main(String[] args) {
-		configureLogging();
-
 		Game.version = "3.3.8-WEB";
 		Game.versionCode = 896;
 
@@ -46,16 +40,13 @@ public class WebLauncher {
 		WebApplicationConfiguration config = new WebApplicationConfiguration("canvas");
 		config.width = SPDSettings.DEFAULT_WINDOW_WIDTH;
 		config.height = SPDSettings.DEFAULT_WINDOW_HEIGHT;
-		config.showDownloadLogs = true;
+		config.showDownloadLogs = false;
 		config.useGL30 = true;
 		config.preloadListener = assetLoader -> assetLoader.loadScript("freetype.js");
 
-		log.info("Starting Shattered Pixel Dungeon TeaVM web launcher");
-		new WebApplication(new ShatteredPixelDungeon(new WebPlatformSupport()), config);
-	}
-
-	private static void configureLogging() {
-		Logger.getLogger(WebLauncher.class.getPackage().getName())
-				.info("Java logging available for TeaVM launcher");
+		new WebApplication(
+				new ShatteredPixelDungeon(new WebPlatformSupport()),
+				new SafeWebPreloadApplicationListener(),
+				config);
 	}
 }

@@ -542,7 +542,7 @@ public class AlchemyScene extends PixelScene {
 
 		saveNeeded = false;
 		try {
-			Dungeon.saveAll();
+			Dungeon.saveAll("alchemySceneOpen");
 			Badges.saveGlobal();
 			Journal.saveGlobal();
 		} catch (IOException e) {
@@ -766,7 +766,7 @@ public class AlchemyScene extends PixelScene {
 
 		saveNeeded = false;
 		try {
-			Dungeon.saveAll();
+			Dungeon.saveAll("alchemyCraftItem");
 			Badges.saveGlobal();
 			Journal.saveGlobal();
 		} catch (IOException e) {
@@ -826,7 +826,7 @@ public class AlchemyScene extends PixelScene {
 			clearSlots();
 			updateState();
 			try {
-				Dungeon.saveAll();
+				Dungeon.saveAll("alchemyPause");
 				Badges.saveGlobal();
 				Journal.saveGlobal();
 			} catch (IOException e) {
@@ -846,7 +846,7 @@ public class AlchemyScene extends PixelScene {
 
 		saveNeeded = false;
 		try {
-			Dungeon.saveAll();
+			Dungeon.saveAll("alchemyDestroy");
 			Badges.saveGlobal();
 			Journal.saveGlobal();
 		} catch (IOException e) {

@@ -47,12 +47,17 @@ import com.watabou.noosa.ColorBlock;
 import com.watabou.noosa.Game;
 import com.watabou.noosa.Image;
 import com.watabou.noosa.audio.Music;
+import com.watabou.utils.DeviceCompat;
 import com.watabou.utils.FileUtils;
 import com.watabou.utils.RectF;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.logging.Logger;
 
 public class WelcomeScene extends PixelScene {
+
+	private static final Logger LOG = Logger.getLogger(WelcomeScene.class.getName());
 
 	private static final int LATEST_UPDATE = ShatteredPixelDungeon.v3_3_0;
 
@@ -155,8 +160,15 @@ public class WelcomeScene extends PixelScene {
 
 					SPDSettings.version(ShatteredPixelDungeon.versionCode);
 					GamesInProgress.selectedClass = null;
+					ArrayList<GamesInProgress.Info> games = GamesInProgress.checkAll();
 					GamesInProgress.curSlot = GamesInProgress.firstEmpty();
-					if (GamesInProgress.curSlot == -1 || Rankings.INSTANCE.totalNumber > 0){
+					boolean routeToTitle = shouldRouteIntroToTitle(games.size(), GamesInProgress.curSlot,
+							Rankings.INSTANCE.totalNumber);
+					webParityLog("welcome continue existingGames=" + games.size()
+							+ " firstEmpty=" + GamesInProgress.curSlot
+							+ " rankings=" + Rankings.INSTANCE.totalNumber
+							+ " route=" + (routeToTitle ? "title" : "heroSelect"));
+					if (routeToTitle){
 						SPDSettings.intro(false);
 						ShatteredPixelDungeon.switchScene(TitleScene.class);
 					} else {
@@ -297,6 +309,16 @@ public class WelcomeScene extends PixelScene {
 		}
 
 		SPDSettings.version(ShatteredPixelDungeon.versionCode);
+	}
+
+	static boolean shouldRouteIntroToTitle(int existingGames, int firstEmptySlot, int rankingTotal) {
+		return existingGames > 0 || firstEmptySlot == -1 || rankingTotal > 0;
+	}
+
+	private static void webParityLog(String message) {
+		if (DeviceCompat.webParityLoggingEnabled()) {
+			LOG.info("[WEB-PARITY] " + message);
+		}
 	}
 	
 }

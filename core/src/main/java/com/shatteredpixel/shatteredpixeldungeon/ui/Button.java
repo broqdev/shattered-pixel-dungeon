@@ -31,9 +31,14 @@ import com.watabou.noosa.Camera;
 import com.watabou.noosa.Game;
 import com.watabou.noosa.PointerArea;
 import com.watabou.noosa.ui.Component;
+import com.watabou.utils.DeviceCompat;
 import com.watabou.utils.Signal;
 
+import java.util.logging.Logger;
+
 public class Button extends Component {
+
+	private static final Logger LOG = Logger.getLogger(Button.class.getName());
 
 	public static float longClick = 0.5f;
 	
@@ -117,20 +122,46 @@ public class Button extends Component {
 		KeyEvent.addKeyListener( keyListener = new Signal.Listener<KeyEvent>() {
 			@Override
 			public boolean onSignal ( KeyEvent event ) {
-				if ( active && KeyBindings.getActionForKey( event ) == keyAction()){
+				GameAction eventAction = KeyBindings.getActionForKey( event );
 					if (event.pressed){
+						if (keyPressed && eventAction == keyPressedAction) {
+							if (DeviceCompat.webParityLoggingEnabled()) {
+								LOG.info("[WEB-PARITY] Button key repeat ignored action=" + eventAction
+										+ " key=" + event.code + " button=" + getClass().getName());
+						}
+						return true;
+					}
+
+						GameAction buttonAction = keyAction();
+						if (active && eventAction == buttonAction) {
+							if (DeviceCompat.webParityLoggingEnabled()) {
+								LOG.info("[WEB-PARITY] Button key press armed action=" + buttonAction
+										+ " key=" + event.code + " button=" + getClass().getName());
+						}
+						keyPressed = true;
+						keyPressedAction = buttonAction;
 						pressedButton = Button.this;
 						pressTime = 0;
 						clickReady = true;
 						Button.this.onPointerDown();
+						return true;
+					}
 					} else {
+						if (keyPressed && eventAction == keyPressedAction) {
+							if (DeviceCompat.webParityLoggingEnabled()) {
+								LOG.info("[WEB-PARITY] Button key release action=" + eventAction
+										+ " key=" + event.code + " button=" + getClass().getName()
+									+ " clickReady=" + clickReady);
+						}
+						keyPressed = false;
+						keyPressedAction = null;
 						Button.this.onPointerUp();
 						if (pressedButton == Button.this) {
 							pressedButton = null;
 							if (clickReady) onClick();
 						}
+						return true;
 					}
-					return true;
 				}
 				return false;
 			}
@@ -138,6 +169,8 @@ public class Button extends Component {
 	}
 	
 	private Signal.Listener<KeyEvent> keyListener;
+	private boolean keyPressed;
+	private GameAction keyPressedAction;
 	
 	public GameAction keyAction(){
 		return null;

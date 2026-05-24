@@ -107,6 +107,7 @@ import com.watabou.noosa.audio.Sample;
 import com.watabou.utils.BArray;
 import com.watabou.utils.Bundlable;
 import com.watabou.utils.Bundle;
+import com.watabou.utils.DeviceCompat;
 import com.watabou.utils.GameMath;
 import com.watabou.utils.PathFinder;
 import com.watabou.utils.Point;
@@ -119,8 +120,11 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.logging.Logger;
 
 public abstract class Level implements Bundlable {
+
+	private static final Logger LOG = Logger.getLogger(Level.class.getName());
 	
 	public static enum Feeling {
 		NONE,
@@ -565,6 +569,11 @@ public abstract class Level implements Bundlable {
 	//returns true if we immediately transition, false otherwise
 	public boolean activateTransition(Hero hero, LevelTransition transition){
 		if (locked){
+			if (DeviceCompat.webParityLoggingEnabled()) {
+				LOG.info("[WEB-PARITY] activateTransition blocked locked depth=" + Dungeon.depth
+						+ " branch=" + Dungeon.branch + " heroPos=" + hero.pos
+						+ " transition=" + transition.type + " cell=" + transition.cell());
+			}
 			return false;
 		}
 
@@ -575,6 +584,16 @@ public abstract class Level implements Bundlable {
 			InterlevelScene.mode = InterlevelScene.Mode.DESCEND;
 		} else {
 			InterlevelScene.mode = InterlevelScene.Mode.ASCEND;
+		}
+		if (DeviceCompat.webParityLoggingEnabled()) {
+			LOG.info("[WEB-PARITY] activateTransition mode=" + InterlevelScene.mode
+					+ " depth=" + Dungeon.depth + " branch=" + Dungeon.branch
+					+ " heroPos=" + hero.pos
+					+ " transitionType=" + transition.type
+					+ " transitionCell=" + transition.cell()
+					+ " destDepth=" + transition.destDepth
+					+ " destBranch=" + transition.destBranch
+					+ " destType=" + transition.destType);
 		}
 		Game.switchScene(InterlevelScene.class);
 		return true;

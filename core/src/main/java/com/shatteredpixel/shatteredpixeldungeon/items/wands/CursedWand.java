@@ -1096,7 +1096,7 @@ public class CursedWand {
 		public boolean effect(Item origin, Char user, Ballistica bolt, boolean positiveOnly) {
 			//appears to crash the game (actually just closes it)
 			try {
-				Dungeon.saveAll();
+				Dungeon.saveAll("cursedWandAbortRetryFail");
 				if(Messages.lang() != Languages.ENGLISH){
 					//Don't bother doing this joke to none-english speakers, I doubt it would translate.
 					//we still consider the effect valid here though as it's cosmetic anyway

@@ -43,11 +43,15 @@ import com.watabou.noosa.Camera;
 import com.watabou.noosa.Game;
 import com.watabou.noosa.Image;
 import com.watabou.noosa.NinePatch;
+import com.watabou.utils.DeviceCompat;
 import com.watabou.utils.RectF;
 
 import java.util.ArrayList;
+import java.util.logging.Logger;
 
 public class StartScene extends PixelScene {
+
+	private static final Logger LOG = Logger.getLogger(StartScene.class.getName());
 	
 	private static final int SLOT_WIDTH = 120;
 	private static final int SLOT_HEIGHT = 22;
@@ -85,7 +89,7 @@ public class StartScene extends PixelScene {
 		add(title);
 		
 		ArrayList<GamesInProgress.Info> games = GamesInProgress.checkAll();
-		
+
 		int slotCount = Math.min(GamesInProgress.MAX_SLOTS, games.size()+1);
 		int slotGap = 10 - slotCount;
 		int slotsHeight = slotCount*SLOT_HEIGHT + (slotCount-1)* slotGap;
@@ -99,6 +103,12 @@ public class StartScene extends PixelScene {
 		float yPos = insets.top + (h - slotsHeight + title.bottom() + 2)/2f - 4;
 		yPos = Math.max(yPos, title.bottom()+2);
 		float slotLeft = insets.left + (w - SLOT_WIDTH) / 2f;
+		webParityLog("startScene create games=" + games.size()
+				+ " slotCount=" + slotCount
+				+ " slotLeft=" + slotLeft
+				+ " firstY=" + yPos
+				+ " width=" + Camera.main.width
+				+ " height=" + Camera.main.height);
 		
 		for (GamesInProgress.Info game : games) {
 			SaveSlotButton existingGame = new SaveSlotButton();
@@ -341,12 +351,20 @@ public class StartScene extends PixelScene {
 		@Override
 		protected void onClick() {
 			if (newGame) {
+				webParityLog("startScene slot clicked slot=" + slot + " newGame=true");
 				GamesInProgress.selectedClass = null;
 				GamesInProgress.curSlot = slot;
 				ShatteredPixelDungeon.switchScene(HeroSelectScene.class);
 			} else {
+				webParityLog("startScene slot clicked slot=" + slot + " newGame=false");
 				ShatteredPixelDungeon.scene().add( new WndGameInProgress(slot));
 			}
+		}
+	}
+
+	private static void webParityLog(String message) {
+		if (DeviceCompat.webParityLoggingEnabled()) {
+			LOG.info("[WEB-PARITY] " + message);
 		}
 	}
 }

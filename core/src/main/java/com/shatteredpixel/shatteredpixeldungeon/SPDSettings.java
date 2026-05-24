@@ -191,10 +191,17 @@ public class SPDSettings extends GameSettings {
 	}
 
 	public static void systemFont(boolean value){
+		if (com.badlogic.gdx.Gdx.app != null && DeviceCompat.isWeb()){
+			put(KEY_SYSTEMFONT, false);
+			return;
+		}
 		put(KEY_SYSTEMFONT, value);
 	}
 
 	public static boolean systemFont(){
+		if (com.badlogic.gdx.Gdx.app != null && DeviceCompat.isWeb()){
+			return false;
+		}
 		return getBoolean(KEY_SYSTEMFONT,
 				(language() == Languages.CHI_SMPL || language() == Languages.CHI_TRAD
 						|| language() == Languages.KOREAN || language() == Languages.JAPANESE));

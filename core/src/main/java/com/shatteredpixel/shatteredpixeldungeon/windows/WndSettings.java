@@ -52,8 +52,11 @@ import com.watabou.utils.Random;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Locale;
+import java.util.logging.Logger;
 
 public class WndSettings extends WndTabbed {
+
+	private static final Logger LOG = Logger.getLogger(WndSettings.class.getName());
 
 	private static final int WIDTH_P	    = 122;
 	private static final int WIDTH_L	    = 223;
@@ -371,6 +374,8 @@ public class WndSettings extends WndTabbed {
 
 		@Override
 		protected void createChildren() {
+			boolean webBuild = webBuild();
+
 			title = PixelScene.renderTextBlock(Messages.get(this, "title"), 9);
 			title.hardlight(TITLE_COLOR);
 			add(title);
@@ -391,11 +396,16 @@ public class WndSettings extends WndTabbed {
 				) {
 					@Override
 					protected void onChange() {
+						if (webBuild()) {
+							webParityLog("blocked interface mode change in web build");
+							return;
+						}
 						SPDSettings.interfaceSize(getSelectedValue());
 						ShatteredPixelDungeon.seamlessResetScene();
 					}
 				};
 				optUIMode.setSelectedValue(SPDSettings.interfaceSize());
+				optUIMode.enable(!webBuild);
 				add(optUIMode);
 			}
 
@@ -407,6 +417,10 @@ public class WndSettings extends WndTabbed {
 						PixelScene.maxDefaultZoom ) {
 					@Override
 					protected void onChange() {
+						if (webBuild()) {
+							webParityLog("blocked interface scale change in web build");
+							return;
+						}
 						if (getSelectedValue() != SPDSettings.scale()) {
 							SPDSettings.scale(getSelectedValue());
 							ShatteredPixelDungeon.seamlessResetScene();
@@ -414,6 +428,7 @@ public class WndSettings extends WndTabbed {
 					}
 				};
 				optUIScale.setSelectedValue(PixelScene.defaultZoom);
+				optUIScale.enable(!webBuild);
 				add(optUIScale);
 			}
 
@@ -569,6 +584,10 @@ public class WndSettings extends WndTabbed {
 			chkFont = new CheckBox(Messages.get(this, "system_font")){
 				@Override
 				protected void onClick() {
+					if (webBuild()) {
+						webParityLog("blocked system font toggle in web build");
+						return;
+					}
 					super.onClick();
 					ShatteredPixelDungeon.seamlessResetScene(new Game.SceneChangeCallback() {
 						@Override
@@ -584,6 +603,7 @@ public class WndSettings extends WndTabbed {
 				}
 			};
 			chkFont.checked(SPDSettings.systemFont());
+			chkFont.enable(!webBuild);
 			add(chkFont);
 
 			chkVibrate = new CheckBox(Messages.get(this, "vibration")){
@@ -602,6 +622,16 @@ public class WndSettings extends WndTabbed {
 			}
 			add(chkVibrate);
 		}
+
+		private static boolean webBuild() {
+			return com.badlogic.gdx.Gdx.app != null && DeviceCompat.isWeb();
+		}
+
+			private static void webParityLog(String message) {
+				if (DeviceCompat.webParityLoggingEnabled()) {
+					LOG.info("[WEB-PARITY] " + message);
+				}
+			}
 
 		@Override
 		protected void layout() {

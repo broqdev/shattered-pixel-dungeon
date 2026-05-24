@@ -30,11 +30,15 @@ import com.github.xpenatan.gdx.teavm.backends.web.WebApplication;
 import com.shatteredpixel.shatteredpixeldungeon.SPDSettings;
 import com.watabou.utils.Point;
 import com.watabou.utils.PlatformSupport;
+import org.teavm.jso.JSBody;
 
 import java.util.HashMap;
+import java.util.logging.Logger;
 import java.util.regex.Pattern;
 
 public class WebPlatformSupport extends PlatformSupport {
+
+	private static final Logger LOG = Logger.getLogger(WebPlatformSupport.class.getName());
 
 	private static FreeTypeFontGenerator basicFontGenerator;
 	private static FreeTypeFontGenerator asianFontGenerator;
@@ -49,11 +53,27 @@ public class WebPlatformSupport extends PlatformSupport {
 
 	@Override
 	public void updateDisplaySize() {
-		Point resolution = SPDSettings.windowResolution();
-		if (Gdx.graphics.getWidth() != resolution.x || Gdx.graphics.getHeight() != resolution.y) {
-			Gdx.graphics.setWindowedMode(resolution.x, resolution.y);
+		Point observed = new Point(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+		Point stored = SPDSettings.windowResolution();
+		if (observed.x > 0 && observed.y > 0 && (stored.x != observed.x || stored.y != observed.y)) {
+			if (webParityLoggingEnabled()) {
+				LOG.info("[WEB-PARITY] web display size observed width=" + observed.x
+						+ " height=" + observed.y
+						+ " storedWidth=" + stored.x
+						+ " storedHeight=" + stored.y
+						+ " action=storeObservedSize");
+			}
+			SPDSettings.windowResolution(observed);
 		}
 	}
+
+	@Override
+	public boolean webParityLoggingEnabled() {
+		return webParityLoggingEnabledNative();
+	}
+
+	@JSBody(script = "return typeof window !== 'undefined' && window.__shpdWebParityLogging === true;")
+	private static native boolean webParityLoggingEnabledNative();
 
 	@Override
 	public boolean supportsFullScreen() {

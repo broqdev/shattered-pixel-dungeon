@@ -21,6 +21,7 @@
 
 package com.watabou.noosa;
 
+import com.watabou.utils.DeviceCompat;
 import com.watabou.utils.RectF;
 
 public class MovieClip extends Image {
@@ -29,6 +30,7 @@ public class MovieClip extends Image {
 	protected int curFrame;
 	protected float frameTimer;
 	protected boolean finished;
+	protected boolean deferFrameAdvance;
 	
 	public boolean paused = false;
 
@@ -56,6 +58,11 @@ public class MovieClip extends Image {
 	
 	protected synchronized void updateAnimation() {
 		if (curAnim != null && curAnim.delay > 0 && (curAnim.looped || !finished)) {
+
+			if (deferFrameAdvance) {
+				deferFrameAdvance = false;
+				return;
+			}
 			
 			int lastFrame = curFrame;
 			
@@ -103,6 +110,7 @@ public class MovieClip extends Image {
 		curAnim = anim;
 		curFrame = 0;
 		finished = false;
+		deferFrameAdvance = anim != null && DeviceCompat.isWeb() && !anim.looped;
 		
 		frameTimer = 0;
 		

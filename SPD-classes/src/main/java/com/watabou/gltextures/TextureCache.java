@@ -123,11 +123,7 @@ public class TextureCache {
 			
 		} else {
 
-			if (src instanceof String) {
-				LOG.info("TextureCache.get: loading texture asset " + src);
-			} else if (src instanceof Pixmap) {
-				LOG.info("TextureCache.get: caching runtime pixmap " + sourceName(src));
-			} else {
+			if (!(src instanceof String) && !(src instanceof Pixmap)) {
 				LOG.warning("TextureCache.get: cache miss for non-texture source " + sourceName(src));
 			}
 			Pixmap bitmap = getBitmap( src );
@@ -142,8 +138,6 @@ public class TextureCache {
 	}
 	
 	public synchronized static void clear() {
-		LOG.info("TextureCache.clear: deleting " + all.size() + " textures");
-		
 		for (Texture txt : all.values()) {
 			txt.delete();
 		}
@@ -152,7 +146,6 @@ public class TextureCache {
 	}
 	
 	public synchronized static void reload() {
-		LOG.info("TextureCache.reload: reloading " + all.size() + " textures");
 		for (SmartTexture tx : all.values()) {
 			tx.reload();
 		}

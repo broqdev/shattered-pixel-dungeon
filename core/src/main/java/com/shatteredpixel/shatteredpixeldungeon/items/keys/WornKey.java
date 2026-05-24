@@ -51,7 +51,7 @@ public class WornKey extends Key {
 	public boolean doPickUp(Hero hero, int pos) {
 		if(!SPDSettings.supportNagged()){
 			try {
-				Dungeon.saveAll();
+				Dungeon.saveAll("wornKeySupportPrompt");
 				Game.runOnRenderThread(new Callback() {
 					@Override
 					public void call() {

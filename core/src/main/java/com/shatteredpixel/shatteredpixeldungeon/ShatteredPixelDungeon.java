@@ -50,8 +50,6 @@ public class ShatteredPixelDungeon extends Game {
 	
 	public ShatteredPixelDungeon( PlatformSupport platform ) {
 		super( sceneClass == null ? WelcomeScene.class : sceneClass, platform );
-		LOG.info("ShatteredPixelDungeon constructed: platform="
-				+ (platform == null ? "null" : platform.getClass().getName()));
 
 		//pre-v3.3.0
 		com.watabou.utils.Bundle.addAlias(
@@ -62,35 +60,26 @@ public class ShatteredPixelDungeon extends Game {
 	
 	@Override
 	public void create() {
-		LOG.info("ShatteredPixelDungeon.create: starting core initialization");
 		super.create();
 
 		updateSystemUI();
 		SPDAction.loadBindings();
-		LOG.info("ShatteredPixelDungeon.create: system UI updated and bindings loaded");
 		
 		Music.INSTANCE.enable( SPDSettings.music() );
 		Music.INSTANCE.volume( SPDSettings.musicVol()*SPDSettings.musicVol()/100f );
 		Sample.INSTANCE.enable( SPDSettings.soundFx() );
 		Sample.INSTANCE.volume( SPDSettings.SFXVol()*SPDSettings.SFXVol()/100f );
-		LOG.info("ShatteredPixelDungeon.create: audio settings music=" + SPDSettings.music()
-				+ " musicVol=" + SPDSettings.musicVol()
-				+ " soundFx=" + SPDSettings.soundFx()
-				+ " sfxVol=" + SPDSettings.SFXVol());
 
 		Sample.INSTANCE.load( Assets.Sounds.all );
-		LOG.info("ShatteredPixelDungeon.create: queued " + Assets.Sounds.all.length + " sound assets");
 		
 	}
 
 	@Override
 	public void finish() {
 		if (!DeviceCompat.isiOS()) {
-			LOG.info("ShatteredPixelDungeon.finish: forwarding to Game.finish");
 			super.finish();
 		} else {
 			//can't exit on iOS (Apple guidelines), so just go to title screen
-			LOG.info("ShatteredPixelDungeon.finish: iOS finish redirects to TitleScene");
 			switchScene(TitleScene.class);
 		}
 	}
@@ -119,6 +108,13 @@ public class ShatteredPixelDungeon extends Game {
 	
 	@Override
 	protected void switchScene() {
+		if (DeviceCompat.isWeb()
+				&& scene instanceof GameScene
+				&& !((GameScene) scene).readyForSceneSwitch()) {
+			requestedScene = null;
+			requestedReset = true;
+			return;
+		}
 		super.switchScene();
 		if (scene instanceof PixelScene){
 			((PixelScene) scene).restoreWindows();
@@ -134,7 +130,6 @@ public class ShatteredPixelDungeon extends Game {
 
 		if (scene instanceof PixelScene &&
 				(height != Game.height || width != Game.width)) {
-			LOG.info("ShatteredPixelDungeon.resize: preserving PixelScene windows for " + width + "x" + height);
 			PixelScene.noFade = true;
 			((PixelScene) scene).saveWindows();
 		}
@@ -147,7 +142,6 @@ public class ShatteredPixelDungeon extends Game {
 	
 	@Override
 	public void destroy(){
-		LOG.info("ShatteredPixelDungeon.destroy: ending actor thread and core game");
 		super.destroy();
 		GameScene.endActorThread();
 	}

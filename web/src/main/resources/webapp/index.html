@@ -79,12 +79,115 @@
         <script>
             const DEFAULT_GAME_WIDTH = 800;
             const DEFAULT_GAME_HEIGHT = 600;
+            const WEB_PARITY_LOGGING_ENABLED = "%WEB_PARITY_LOGGING%" === "true";
+            const WEB_PARITY_LOG_KEY = "shpd.webParityLogBuffer";
+            const WEB_PARITY_LOG_LIMIT = 300;
+            let pagehideDispatched = false;
+            window.__shpdWebParityLogging = WEB_PARITY_LOGGING_ENABLED;
+
+            function webParityStorage() {
+                try {
+                    return window.sessionStorage;
+                } catch (error) {
+                    return null;
+                }
+            }
+
+            function parseWebParityRows(raw) {
+                if (!raw) {
+                    return [];
+                }
+                try {
+                    const rows = JSON.parse(raw);
+                    return Array.isArray(rows) ? rows : [];
+                } catch (error) {
+                    return [];
+                }
+            }
+
+            function formatWebParityValue(value) {
+                if (typeof value === "string") {
+                    return value;
+                }
+                try {
+                    return JSON.stringify(value);
+                } catch (error) {
+                    return String(value);
+                }
+            }
+
+            function storeWebParityConsole(level, args) {
+                if (!WEB_PARITY_LOGGING_ENABLED) {
+                    return;
+                }
+                const message = Array.from(args).map(formatWebParityValue).join(" ");
+                if (!message.includes("[WEB-PARITY]") || message.includes("[WEB-PARITY-HISTORY]")) {
+                    return;
+                }
+
+                const storage = webParityStorage();
+                if (!storage) {
+                    return;
+                }
+
+                try {
+                    const rows = parseWebParityRows(storage.getItem(WEB_PARITY_LOG_KEY));
+                    rows.push({ at: new Date().toISOString(), level, message });
+                    storage.setItem(WEB_PARITY_LOG_KEY, JSON.stringify(rows.slice(-WEB_PARITY_LOG_LIMIT)));
+                } catch (error) {
+                    // Diagnostics must never block the game page.
+                }
+            }
+
+            function replayPreviousWebParityLogs() {
+                if (!WEB_PARITY_LOGGING_ENABLED) {
+                    return;
+                }
+                const storage = webParityStorage();
+                if (!storage) {
+                    return;
+                }
+
+                const rows = parseWebParityRows(storage.getItem(WEB_PARITY_LOG_KEY));
+                storage.removeItem(WEB_PARITY_LOG_KEY);
+                rows.forEach((row) => {
+                    console.info("[WEB-PARITY-HISTORY] " + row.at + " " + row.level + " " + row.message);
+                });
+            }
+
+            function installWebParityConsoleBuffer() {
+                if (!WEB_PARITY_LOGGING_ENABLED) {
+                    return;
+                }
+                ["log", "info", "warn", "error"].forEach((level) => {
+                    const original = console[level] || console.log;
+                    try {
+                        console[level] = function() {
+                            storeWebParityConsole(level, arguments);
+                            return original.apply(console, arguments);
+                        };
+                    } catch (error) {
+                        // Some browser contexts expose readonly console methods.
+                    }
+                });
+            }
+
+            replayPreviousWebParityLogs();
+            installWebParityConsoleBuffer();
 
             function focusGameCanvas() {
                 const canvas = document.getElementById("canvas");
                 if (canvas && document.activeElement !== canvas) {
                     canvas.focus({ preventScroll: true });
+                    logWebParity("canvas focused", { activeElement: document.activeElement && document.activeElement.id });
                 }
+            }
+
+            function logWebParity(message, data) {
+                if (!WEB_PARITY_LOGGING_ENABLED) {
+                    return;
+                }
+                console.info("[WEB-PARITY] " + message, data || "");
             }
 
             function syncGameContainerRatio() {
@@ -114,10 +217,18 @@
             }
 
             function preventPageKeyHandling(event) {
-                if (document.activeElement === document.getElementById("canvas")
-                        && ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " ", "Tab"].includes(event.key)) {
-                    event.preventDefault();
+                if (document.activeElement !== document.getElementById("canvas")
+                        || event.altKey || event.ctrlKey || event.metaKey) {
+                    return;
                 }
+
+                logWebParity("browser key " + event.type, {
+                    key: event.key,
+                    code: event.code,
+                    repeat: event.repeat,
+                    defaultPreventedBefore: event.defaultPrevented
+                });
+                event.preventDefault();
             }
 
             async function start() {
@@ -133,9 +244,33 @@
 
             window.addEventListener("load", start);
             window.addEventListener("focus", focusGameCanvas);
+            window.addEventListener("pageshow", () => {
+                pagehideDispatched = false;
+            }, { capture: true });
+            window.addEventListener("pagehide", () => {
+                pagehideDispatched = true;
+                logWebParity("pagehide", {
+                    visibilityState: document.visibilityState,
+                    activeElement: document.activeElement && document.activeElement.id
+                });
+            }, { capture: true });
+            document.addEventListener("visibilitychange", (event) => {
+                const data = {
+                    visibilityState: document.visibilityState,
+                    activeElement: document.activeElement && document.activeElement.id
+                };
+                logWebParity("visibilitychange", data);
+                if (pagehideDispatched && document.visibilityState === "hidden") {
+                    logWebParity("visibilitychange suppressed after pagehide", data);
+                    event.stopImmediatePropagation();
+                }
+            }, { capture: true });
             window.addEventListener("keydown", preventPageKeyHandling, { capture: true });
             window.addEventListener("keyup", preventPageKeyHandling, { capture: true });
-            document.addEventListener("pointerdown", focusGameCanvas, { capture: true });
+            document.addEventListener("pointerdown", (event) => {
+                logWebParity("pointerdown", { target: event.target && event.target.id });
+                focusGameCanvas();
+            }, { capture: true });
         </script>
         %JS_SCRIPT%
     </body>

@@ -61,7 +61,7 @@ import java.nio.Buffer;
 import java.util.HashSet;
 
 public class CharSprite extends MovieClip implements Tweener.Listener, MovieClip.Listener {
-	
+
 	// Color constants for floating text
 	public static final int DEFAULT		= 0xFFFFFF;
 	public static final int POSITIVE	= 0x00FF00;

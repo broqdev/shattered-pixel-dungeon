@@ -141,12 +141,10 @@ import com.watabou.noosa.Visual;
 import com.watabou.noosa.audio.Sample;
 import com.watabou.noosa.particles.Emitter;
 import com.watabou.noosa.tweeners.Tweener;
-import com.watabou.utils.BArray;
 import com.watabou.utils.Callback;
 import com.watabou.utils.DeviceCompat;
 import com.watabou.utils.GameMath;
 import com.watabou.utils.PlatformSupport;
-import com.watabou.utils.PathFinder;
 import com.watabou.utils.Point;
 import com.watabou.utils.PointF;
 import com.watabou.utils.Random;
@@ -220,19 +218,11 @@ public class GameScene extends PixelScene {
 
 	@Override
 	public void create() {
-		InterlevelScene.Mode startMode = InterlevelScene.mode;
-		LOG.info("GameScene.create: starting mode=" + startMode
-				+ " " + levelSummary(Dungeon.level)
-				+ " " + heroSummary(Dungeon.hero));
 		
 		if (Dungeon.hero == null || Dungeon.level == null){
-			LOG.warning("GameScene.create: missing dungeon state, returning to TitleScene"
-					+ " heroPresent=" + (Dungeon.hero != null)
-					+ " levelPresent=" + (Dungeon.level != null));
 			ShatteredPixelDungeon.switchNoFade(TitleScene.class);
 			return;
 		}
-		logExitPath(Dungeon.level, Dungeon.hero);
 
 		Dungeon.level.playLevelMusic();
 
@@ -242,12 +232,24 @@ public class GameScene extends PixelScene {
 		Camera.main.zoom( GameMath.gate(minZoom, defaultZoom + SPDSettings.zoom(), maxZoom));
 		Camera.main.edgeScroll.set(1);
 
-		switch (SPDSettings.cameraFollow()) {
-			case 4: default:    Camera.main.setFollowDeadzone(0);      break;
-			case 3:             Camera.main.setFollowDeadzone(0.2f);   break;
-			case 2:             Camera.main.setFollowDeadzone(0.5f);   break;
-			case 1:             Camera.main.setFollowDeadzone(0.9f);   break;
+		int cameraFollow = SPDSettings.cameraFollow();
+		float followDeadzone;
+		switch (cameraFollow) {
+			case 4: default:    followDeadzone = 0;      break;
+			case 3:             followDeadzone = 0.2f;   break;
+			case 2:             followDeadzone = 0.5f;   break;
+			case 1:             followDeadzone = 0.9f;   break;
 		}
+		Camera.main.setFollowDeadzone(followDeadzone);
+		webParityLog("camera setup follow=" + cameraFollow
+				+ " deadzone=" + followDeadzone
+				+ " zoom=" + Camera.main.zoom
+				+ " gameWidth=" + Game.width
+				+ " gameHeight=" + Game.height
+				+ " cameraWidth=" + Camera.main.width
+				+ " cameraHeight=" + Camera.main.height
+				+ " levelWidth=" + Dungeon.level.width()
+				+ " levelHeight=" + Dungeon.level.height());
 
 		RectF insets = getCommonInsets();
 		//we want to check if large is the same as blocking here
@@ -777,22 +779,16 @@ public class GameScene extends PixelScene {
 			}
 		}
 
-		LOG.info("GameScene.create: complete mode=" + startMode
-				+ " depth=" + Dungeon.depth + " branch=" + Dungeon.branch
-				+ " cameraZoom=" + Camera.main.zoom
-				+ " ui=" + uiCamera.width + "x" + uiCamera.height);
 	}
 	
 	public void destroy() {
-		LOG.info("GameScene.destroy: waiting for actor thread " + actorThreadState());
-		
+
 		//tell the actor thread to finish, then wait for it to complete any actions it may be doing.
-		if (!waitForActorThread( 4500, true )){
-			Throwable t = new Throwable();
-			t.setStackTrace(actorThread.getStackTrace());
-			LOG.severe("GameScene.destroy: timed out waiting for actor thread " + actorThreadState());
-			throw new RuntimeException("timeout waiting for actor thread! ", t);
+		if (webParityLogging()) webParityLog("destroy begin " + actorThreadSnapshot());
+		if (!stopActorThreadForDestroy()) {
+			if (webParityLogging()) webParityLog("destroy continuing with pending actor stop " + actorThreadSnapshot());
 		}
+		if (webParityLogging()) webParityLog("destroy actor-thread clear " + actorThreadSnapshot());
 
 		Emitter.freezeEmitters = false;
 		
@@ -801,65 +797,146 @@ public class GameScene extends PixelScene {
 		Journal.saveGlobal();
 		
 		super.destroy();
-		LOG.info("GameScene.destroy: complete");
 	}
 	
 	public static void endActorThread(){
-		if (actorThread != null && actorThread.isAlive()){
-			LOG.info("GameScene.endActorThread: interrupting " + actorThreadState());
-			Actor.keepActorThreadAlive = false;
-			if (DeviceCompat.isWeb()){
-				notifyActorThread();
-				return;
+		requestActorThreadStop("endActorThread interrupt");
+	}
+
+	@Override
+	public boolean readyForSceneSwitch(){
+		if (!DeviceCompat.isWeb()) {
+			return true;
+		}
+		return stopActorThreadBeforeSceneSwitch();
+	}
+
+	private boolean stopActorThreadForDestroy() {
+		if (!DeviceCompat.isWeb()) {
+			if (!waitForActorThread( 4500, true )){
+				if (webParityLogging()) webParityLog("destroy actor-thread timeout " + actorThreadSnapshot());
+				Throwable t = new Throwable();
+				t.setStackTrace(actorThread.getStackTrace());
+				throw new RuntimeException("timeout waiting for actor thread! ", t);
 			}
-			actorThread.interrupt();
+			return true;
+		}
+
+		return stopActorThreadBeforeSceneSwitch();
+	}
+
+	private boolean stopActorThreadBeforeSceneSwitch() {
+		if (actorThread == null || !actorThread.isAlive()) {
+			actorLifecycle = ActorLifecycle.STOPPED;
+			actorThread = null;
+			return true;
+		}
+
+		requestActorThreadStop("scene switch actor stop requested");
+		if (webParityLogging()) webParityLog("scene switch deferred until actor thread stops " + actorThreadSnapshot());
+		return false;
+	}
+
+	private static void requestActorThreadStop(String reason) {
+		if (actorThread != null && actorThread.isAlive()){
+			actorLifecycle = ActorLifecycle.STOPPING;
+			if (webParityLogging()) webParityLog(reason + " " + actorThreadSnapshot());
+			Actor.keepActorThreadAlive = false;
+			if (com.badlogic.gdx.Gdx.app != null && DeviceCompat.isWeb()) {
+				Actor.notifySpriteWaiters();
+				synchronized (actorThread) {
+					actorThread.notify();
+				}
+			} else {
+				actorThread.interrupt();
+			}
 		}
 	}
 
 	public boolean waitForActorThread(int msToWait, boolean interrupt){
 		if (actorThread == null || !actorThread.isAlive()) {
+			if (webParityLogging()) {
+				webParityLog("waitForActorThread skip no-live-thread ms=" + msToWait
+						+ " interrupt=" + interrupt + " " + actorThreadSnapshot());
+			}
 			return true;
 		}
-		if (DeviceCompat.isWeb()){
+		if (!Actor.processing()) {
 			if (interrupt) {
-				Actor.keepActorThreadAlive = false;
-				notifyActorThread();
+				requestActorThreadStop("waitForActorThread stop parked actor thread");
 			}
-			LOG.info("GameScene.waitForActorThread: WebGL requested non-blocking actor thread stop "
-					+ "interrupt=" + interrupt + " " + actorThreadState());
+			if (webParityLogging()) {
+				webParityLog("waitForActorThread skip not-processing ms=" + msToWait
+						+ " interrupt=" + interrupt + " " + actorThreadSnapshot());
+			}
 			return true;
+		}
+		if (DeviceCompat.isWeb()) {
+			if (interrupt) {
+				requestActorThreadStop("waitForActorThread web nonblocking interrupt");
+			}
+			if (webParityLogging()) {
+				webParityLog("waitForActorThread web nonblocking incomplete ms=" + msToWait
+						+ " interrupt=" + interrupt + " " + actorThreadSnapshot());
+			}
+			return false;
 		}
 		synchronized (actorThread) {
+			long started = System.currentTimeMillis();
+			if (webParityLogging()) {
+				webParityLog("waitForActorThread begin ms=" + msToWait
+						+ " interrupt=" + interrupt + " " + actorThreadSnapshot());
+			}
 			if (interrupt) actorThread.interrupt();
 			try {
 				actorThread.wait(msToWait);
 			} catch (InterruptedException e) {
 				ShatteredPixelDungeon.reportException(e);
 			}
-			boolean stopped = !Actor.processing();
-			if (!stopped) {
-				LOG.warning("GameScene.waitForActorThread: still processing after " + msToWait
-						+ "ms interrupt=" + interrupt + " " + actorThreadState());
+			boolean complete = !Actor.processing();
+			if (webParityLogging()) {
+				webParityLog("waitForActorThread end complete=" + complete
+						+ " elapsedMs=" + (System.currentTimeMillis() - started)
+						+ " " + actorThreadSnapshot());
 			}
-			return stopped;
+			return complete;
 		}
 	}
 	
 	@Override
 	public synchronized void onPause() {
-		LOG.info("GameScene.onPause: saving depth=" + Dungeon.depth + " branch=" + Dungeon.branch);
 		try {
-			if (!Dungeon.hero.ready) waitForActorThread(500, false);
-			Dungeon.saveAll();
-			Badges.saveGlobal();
-			Journal.saveGlobal();
-			LOG.info("GameScene.onPause: save complete depth=" + Dungeon.depth + " branch=" + Dungeon.branch);
+			if (webParityLogging()) webParityLog("onPause begin " + actorThreadSnapshot());
+			boolean waitComplete = true;
+			if (!Dungeon.hero.ready) waitComplete = waitForActorThread(500, false);
+			if (webParityLogging()) {
+				webParityLog("onPause before save waitComplete=" + waitComplete + " " + actorThreadSnapshot());
+			}
+			if (DeviceCompat.isWeb() && !waitComplete && webParityLogging()) {
+				webParityLog("onPause saving with actor coroutine still marked active " + actorThreadSnapshot());
+			}
+			saveGameOnPause();
+			if (webParityLogging()) webParityLog("onPause saved " + actorThreadSnapshot());
 		} catch (IOException e) {
 			ShatteredPixelDungeon.reportException(e);
 		}
 	}
 
+	protected void saveGameOnPause() throws IOException {
+		Dungeon.saveAll("gameScenePause");
+		Badges.saveGlobal();
+		Journal.saveGlobal();
+	}
+
 	private static Thread actorThread;
+
+	private enum ActorLifecycle {
+		STOPPED,
+		RUNNING,
+		STOPPING
+	}
+
+	private static volatile ActorLifecycle actorLifecycle = ActorLifecycle.STOPPED;
 	
 	//sometimes UI changes can be prompted by the actor thread.
 	// We queue any removed element destruction, rather than destroying them in the actor thread.
@@ -904,13 +981,18 @@ public class GameScene extends PixelScene {
 			waterOfs = water.offsetY(); //re-assign to account for auto adjust
 		}
 
-		if (!Actor.processing() && Dungeon.hero.isAlive()) {
+		if (!Game.switchingScene() && !Actor.processing() && Dungeon.hero.isAlive()) {
 			if (actorThread == null || !actorThread.isAlive()) {
-				
+
 				actorThread = new Thread() {
 					@Override
 					public void run() {
-						Actor.process();
+						try {
+							Actor.process();
+						} finally {
+							actorLifecycle = ActorLifecycle.STOPPED;
+							if (webParityLogging()) webParityLog("actorThread stopped " + actorThreadSnapshot());
+						}
 					}
 				};
 
@@ -920,12 +1002,10 @@ public class GameScene extends PixelScene {
 				}
 				actorThread.setName("SHPD Actor Thread");
 				Thread.currentThread().setName("SHPD Render Thread");
+				actorLifecycle = ActorLifecycle.RUNNING;
 				Actor.keepActorThreadAlive = true;
-				LOG.info("GameScene.update: starting actor thread depth=" + Dungeon.depth
-						+ " branch=" + Dungeon.branch
-						+ " processors=" + Runtime.getRuntime().availableProcessors()
-						+ " heroReady=" + Dungeon.hero.ready);
 				actorThread.start();
+				if (webParityLogging()) webParityLog("actorThread started " + actorThreadSnapshot());
 			} else if (notifyDelay <= 0f) {
 				notifyDelay += 1/60f;
 				synchronized (actorThread) {
@@ -1129,15 +1209,34 @@ public class GameScene extends PixelScene {
 		}
 	}
 
-	private static void notifyActorThread(){
-		if (actorThread == null || !actorThread.isAlive()) {
-			return;
-		}
-		synchronized (actorThread) {
-			actorThread.notify();
+	private static void webParityLog(String message) {
+		if (webParityLogging()) {
+			LOG.info("[WEB-PARITY] " + message);
 		}
 	}
-	
+
+	private static boolean webParityLogging() {
+		return DeviceCompat.webParityLoggingEnabled();
+	}
+
+	private static String actorThreadSnapshot() {
+		boolean alive = actorThread != null && actorThread.isAlive();
+		boolean processing = Actor.processing();
+		Hero hero = Dungeon.hero;
+		boolean switching = Game.instance != null && Game.switchingScene();
+		return "depth=" + Dungeon.depth
+				+ " branch=" + Dungeon.branch
+				+ " mode=" + InterlevelScene.mode
+				+ " switching=" + switching
+				+ " actorLifecycle=" + actorLifecycle
+				+ " actorThreadAlive=" + alive
+				+ " actorProcessing=" + processing
+				+ " currentActor=" + Actor.currentDebugName()
+				+ " heroReady=" + (hero != null && hero.ready)
+				+ " heroAction=" + (hero == null || hero.curAction == null ? "none" : hero.curAction.getClass().getName())
+				+ " heroPos=" + (hero == null ? -1 : hero.pos);
+	}
+
 	private synchronized void prompt( String text ) {
 		
 		if (prompt != null) {
@@ -1799,98 +1898,6 @@ public class GameScene extends PixelScene {
 		} else {
 			GameScene.show( new WndMessage( Messages.get(GameScene.class, "dont_know") ) ) ;
 		}
-	}
-
-	private static String levelSummary(Level level) {
-		if (level == null) {
-			return "level=null";
-		}
-		return "level=" + level.getClass().getSimpleName()
-				+ " depth=" + Dungeon.depth
-				+ " branch=" + Dungeon.branch
-				+ " size=" + level.width() + "x" + level.height()
-				+ " mobs=" + (level.mobs == null ? 0 : level.mobs.size())
-				+ " heaps=" + (level.heaps == null ? 0 : level.heaps.keyArray().length)
-				+ " blobs=" + (level.blobs == null ? 0 : level.blobs.size())
-				+ " traps=" + (level.traps == null ? 0 : level.traps.keyArray().length)
-				+ " plants=" + (level.plants == null ? 0 : level.plants.keyArray().length);
-	}
-
-	private static void logExitPath(Level level, Hero hero) {
-		if (level == null || hero == null || Dungeon.depth > 2) {
-			return;
-		}
-
-		int exit = level.exit();
-		if (exit < 0 || exit >= level.length()) {
-			LOG.warning("GameScene.create: no regular exit path target depth=" + Dungeon.depth
-					+ " branch=" + Dungeon.branch
-					+ " heroPos=" + hero.pos
-					+ " exit=" + exit);
-			return;
-		}
-
-		boolean[] passable = BArray.or(level.passable, level.avoid, null);
-		for (int i = 0; i < passable.length; i++) {
-			int terrain = level.map[i];
-			passable[i] = passable[i]
-					|| terrain == Terrain.DOOR
-					|| terrain == Terrain.SECRET_DOOR
-					|| terrain == Terrain.LOCKED_DOOR
-					|| terrain == Terrain.HERO_LKD_DR
-					|| terrain == Terrain.CRYSTAL_DOOR
-					|| terrain == Terrain.EXIT
-					|| terrain == Terrain.LOCKED_EXIT
-					|| terrain == Terrain.UNLOCKED_EXIT;
-		}
-		passable[hero.pos] = true;
-		passable[exit] = true;
-		PathFinder.Path path = PathFinder.find(hero.pos, exit, passable);
-		if (path == null) {
-			LOG.warning("GameScene.create: no path to regular exit depth=" + Dungeon.depth
-					+ " branch=" + Dungeon.branch
-					+ " heroPos=" + hero.pos
-					+ " exit=" + exit);
-			return;
-		}
-
-		StringBuilder cells = new StringBuilder();
-		int limit = Math.min(path.size(), 48);
-		for (int i = 0; i < limit; i++) {
-			if (i > 0) cells.append(',');
-			cells.append(path.get(i));
-		}
-		if (path.size() > limit) {
-			cells.append(",...");
-		}
-		LOG.info("GameScene.create: pathToExit depth=" + Dungeon.depth
-				+ " branch=" + Dungeon.branch
-				+ " from=" + hero.pos
-				+ " exit=" + exit
-				+ " length=" + path.size()
-				+ " cells=" + cells);
-	}
-
-	private static String heroSummary(Hero hero) {
-		if (hero == null) {
-			return "hero=null";
-		}
-		return "hero=" + hero.heroClass
-				+ "/" + hero.subClass
-				+ " lvl=" + hero.lvl
-				+ " hp=" + hero.HP + "/" + hero.HT
-				+ " pos=" + hero.pos
-				+ " alive=" + hero.isAlive()
-				+ " ready=" + hero.ready;
-	}
-
-	private static String actorThreadState() {
-		if (actorThread == null) {
-			return "actorThread=null";
-		}
-		return "actorThreadAlive=" + actorThread.isAlive()
-				+ " keepAlive=" + Actor.keepActorThreadAlive
-				+ " processing=" + Actor.processing();
 	}
 
 	

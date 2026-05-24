@@ -59,9 +59,13 @@ import com.watabou.utils.DeviceCompat;
 import com.watabou.utils.GameMath;
 import com.watabou.utils.RectF;
 
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.logging.Logger;
 
 public class TitleScene extends PixelScene {
+
+	private static final Logger LOG = Logger.getLogger(TitleScene.class.getName());
 
 	private Image title;
 	private Fireball leftFB;
@@ -147,7 +151,10 @@ public class TitleScene extends PixelScene {
 		btnPlay = new StyledButton(GREY_TR, Messages.get(this, "enter")){
 			@Override
 			protected void onClick() {
-				if (GamesInProgress.checkAll().size() == 0){
+				ArrayList<GamesInProgress.Info> games = GamesInProgress.checkAll();
+				webParityLog("title enter games=" + games.size()
+						+ " route=" + (games.isEmpty() ? "heroSelect" : "startScene"));
+				if (games.size() == 0){
 					GamesInProgress.selectedClass = null;
 					GamesInProgress.curSlot = 1;
 					ShatteredPixelDungeon.switchScene(HeroSelectScene.class);
@@ -486,6 +493,12 @@ public class TitleScene extends PixelScene {
 		@Override
 		protected void onClick() {
 			ShatteredPixelDungeon.switchNoFade(SupporterScene.class);
+		}
+	}
+
+	private static void webParityLog(String message) {
+		if (DeviceCompat.webParityLoggingEnabled()) {
+			LOG.info("[WEB-PARITY] " + message);
 		}
 	}
 }

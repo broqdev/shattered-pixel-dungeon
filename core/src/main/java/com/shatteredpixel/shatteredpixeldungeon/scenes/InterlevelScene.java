@@ -66,8 +66,11 @@ import com.watabou.utils.Signal;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.logging.Logger;
 
 public class InterlevelScene extends PixelScene {
+
+	private static final Logger LOG = Logger.getLogger(InterlevelScene.class.getName());
 	
 	//slow fade on entering a new region
 	private static final float SLOW_FADE = 1f; //.33 in, 1.33 steady, .33 out, 2 seconds total
@@ -416,6 +419,7 @@ public class InterlevelScene extends PixelScene {
 				public void run() {
 					
 					try {
+						webParityLog("loader begin " + transitionSnapshot());
 
 						Actor.fixTime();
 
@@ -442,6 +446,7 @@ public class InterlevelScene extends PixelScene {
 								reset();
 								break;
 						}
+						webParityLog("loader complete " + transitionSnapshot());
 						
 					} catch (Exception e) {
 						
@@ -620,6 +625,7 @@ public class InterlevelScene extends PixelScene {
 	}
 
 	private void descend() throws IOException {
+		webParityLog("descend begin " + transitionSnapshot());
 
 		if (Dungeon.hero == null) {
 			Mob.clearHeldAllies();
@@ -653,7 +659,7 @@ public class InterlevelScene extends PixelScene {
 			} else {
 				Mob.holdAllies(Dungeon.level);
 			}
-			Dungeon.saveAll();
+			Dungeon.saveAll("interlevelDescend");
 
 			Level level;
 			Dungeon.depth = curTransition.destDepth;
@@ -665,20 +671,22 @@ public class InterlevelScene extends PixelScene {
 				level = Dungeon.newLevel();
 			}
 
-			LevelTransition destTransition = level.getTransition(curTransition.destType);
+			int destCell = destinationCell(level);
+			webParityLog("descend destinationCell=" + destCell + " " + transitionSnapshot());
 			curTransition = null;
-			Dungeon.switchLevel( level, destTransition.cell() );
+			Dungeon.switchLevel( level, destCell );
 		}
 
 	}
 
 	//TODO atm falling always just increments depth by 1, do we eventually want to roll it into the transition system?
 	private void fall() throws IOException {
+		webParityLog("fall begin " + transitionSnapshot());
 		
 		Mob.holdAllies( Dungeon.level );
 		
 		Buff.affect( Dungeon.hero, Chasm.Falling.class );
-		Dungeon.saveAll();
+		Dungeon.saveAll("interlevelFall");
 
 		Level level;
 		Dungeon.depth++;
@@ -687,17 +695,21 @@ public class InterlevelScene extends PixelScene {
 		} else {
 			level = Dungeon.newLevel();
 		}
-		Dungeon.switchLevel( level, level.fallCell( fallIntoPit ));
+		int destCell = level.fallCell( fallIntoPit );
+		webParityLog("fall destinationCell=" + destCell + " depth=" + Dungeon.depth
+				+ " branch=" + Dungeon.branch);
+		Dungeon.switchLevel( level, destCell );
 	}
 
 	private void ascend() throws IOException {
+		webParityLog("ascend begin " + transitionSnapshot());
 		if (curTransition.destBranch != Dungeon.branch && Dungeon.depth >= 16 && Dungeon.depth <= 20) {
 			//FIXME avoids holding allies when entering city quest area, this is very sloppy though
 			// perhaps holding allies could be a property of the transition?
 		} else {
 			Mob.holdAllies(Dungeon.level);
 		}
-		Dungeon.saveAll();
+		Dungeon.saveAll("interlevelAscend");
 
 		Level level;
 		Dungeon.depth = curTransition.destDepth;
@@ -709,14 +721,83 @@ public class InterlevelScene extends PixelScene {
 			level = Dungeon.newLevel();
 		}
 
-		LevelTransition destTransition = level.getTransition(curTransition.destType);
+		int destCell = destinationCell(level);
+		webParityLog("ascend destinationCell=" + destCell + " " + transitionSnapshot());
 		curTransition = null;
-		Dungeon.switchLevel( level, destTransition.cell() );
+		Dungeon.switchLevel( level, destCell );
+	}
+
+	private int destinationCell(Level level) {
+		return destinationCell(level, curTransition);
+	}
+
+	static int destinationCell(Level level, LevelTransition transition) {
+		LevelTransition destTransition = level.getTransition(transition.destType);
+		if (destTransition != null && destTransition.type == transition.destType) {
+			webParityLog("destinationCell exact cell=" + destTransition.cell()
+					+ " destType=" + transition.destType
+					+ " levelDepth=" + Dungeon.depth + " levelBranch=" + Dungeon.branch);
+			return destTransition.cell();
+		}
+
+		int terrainCell = terrainTransitionCell(level, transition.destType);
+		if (terrainCell != -1) {
+			webParityLog("destinationCell terrain cell=" + terrainCell
+					+ " destType=" + transition.destType
+					+ " fallbackTransition=" + (destTransition == null ? "none" : destTransition.type));
+			return terrainCell;
+		}
+
+		int fallback = destTransition != null ? destTransition.cell() : level.entrance();
+		webParityLog("destinationCell fallback cell=" + fallback
+				+ " destType=" + transition.destType
+				+ " fallbackTransition=" + (destTransition == null ? "none" : destTransition.type));
+		return fallback;
+	}
+
+	private static int terrainTransitionCell(Level level, LevelTransition.Type type) {
+		for (int i = 0; i < level.length(); i++) {
+			switch (level.map[i]) {
+				case Terrain.ENTRANCE:
+				case Terrain.ENTRANCE_SP:
+					if (type == LevelTransition.Type.REGULAR_ENTRANCE || type == LevelTransition.Type.BRANCH_ENTRANCE) {
+						return i;
+					}
+					break;
+				case Terrain.EXIT:
+				case Terrain.LOCKED_EXIT:
+				case Terrain.UNLOCKED_EXIT:
+					if (type == LevelTransition.Type.REGULAR_EXIT || type == LevelTransition.Type.BRANCH_EXIT) {
+						return i;
+					}
+					break;
+			}
+		}
+		return -1;
+	}
+
+	private static void webParityLog(String message) {
+		if (DeviceCompat.webParityLoggingEnabled()) {
+			LOG.info("[WEB-PARITY] " + message);
+		}
+	}
+
+	private static String transitionSnapshot() {
+		LevelTransition transition = curTransition;
+		return "mode=" + mode
+				+ " depth=" + Dungeon.depth
+				+ " branch=" + Dungeon.branch
+				+ " heroPos=" + (Dungeon.hero == null ? -1 : Dungeon.hero.pos)
+				+ " transition=" + (transition == null ? "none" : transition.type)
+				+ " transitionCell=" + (transition == null ? -1 : transition.cell())
+				+ " destDepth=" + (transition == null ? -1 : transition.destDepth)
+				+ " destBranch=" + (transition == null ? -1 : transition.destBranch)
+				+ " destType=" + (transition == null ? "none" : transition.destType);
 	}
 	
 	private void returnTo() throws IOException {
 		Mob.holdAllies( Dungeon.level );
-		Dungeon.saveAll();
+		Dungeon.saveAll("interlevelReturn");
 
 		Level level;
 		Dungeon.depth = returnDepth;

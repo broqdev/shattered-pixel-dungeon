@@ -102,7 +102,7 @@ public class WndGame extends Window {
 			@Override
 			protected void onClick() {
 				try {
-					Dungeon.saveAll();
+					Dungeon.saveAll("wndGameMainMenu");
 				} catch (IOException e) {
 					ShatteredPixelDungeon.reportException(e);
 				}

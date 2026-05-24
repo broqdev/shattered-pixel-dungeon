@@ -39,11 +39,16 @@ import com.watabou.noosa.Camera;
 import com.watabou.noosa.Game;
 import com.watabou.noosa.ScrollArea;
 import com.watabou.utils.GameMath;
+import com.watabou.utils.DeviceCompat;
 import com.watabou.utils.Point;
 import com.watabou.utils.PointF;
 import com.watabou.utils.Signal;
 
+import java.util.logging.Logger;
+
 public class CellSelector extends ScrollArea {
+
+	private static final Logger LOG = Logger.getLogger(CellSelector.class.getName());
 
 	public Listener listener = null;
 	
@@ -92,7 +97,7 @@ public class CellSelector extends ScrollArea {
 			if (Dungeon.hero.sprite != null && Dungeon.hero.sprite.overlapsPoint( p.x, p.y )){
 				PointF c = DungeonTilemap.tileCenterToWorld(Dungeon.hero.pos);
 				if (Math.abs(p.x - c.x) <= 12 && Math.abs(p.y - c.y) <= 12) {
-					select(Dungeon.hero.pos, event.button);
+					selectFromPointer(Dungeon.hero.pos, event, "hero");
 					return;
 				}
 			}
@@ -102,7 +107,7 @@ public class CellSelector extends ScrollArea {
 				if (mob.sprite != null && mob.sprite.overlapsPoint( p.x, p.y )){
 					PointF c = DungeonTilemap.tileCenterToWorld(mob.pos);
 					if (Math.abs(p.x - c.x) <= 12 && Math.abs(p.y - c.y) <= 12) {
-						select(mob.pos, event.button);
+						selectFromPointer(mob.pos, event, "mob");
 						return;
 					}
 				}
@@ -113,16 +118,36 @@ public class CellSelector extends ScrollArea {
 				if (heap.sprite != null && heap.sprite.overlapsPoint( p.x, p.y)){
 					PointF c = DungeonTilemap.tileCenterToWorld(heap.pos);
 					if (Math.abs(p.x - c.x) <= 12 && Math.abs(p.y - c.y) <= 12) {
-						select(heap.pos, event.button);
+						selectFromPointer(heap.pos, event, "heap");
 						return;
 					}
 				}
 			}
 			
-			select( ((DungeonTilemap)target).screenToTile(
+			selectFromPointer( ((DungeonTilemap)target).screenToTile(
 				(int) event.current.x,
 				(int) event.current.y,
-					true ), event.button );
+					true ), event, "tile" );
+		}
+	}
+
+	private void selectFromPointer(int cell, PointerEvent event, String source) {
+		webParityLog("cell selected source=" + source
+				+ " button=" + event.button
+				+ " screenX=" + (int)event.current.x
+				+ " screenY=" + (int)event.current.y
+				+ " cell=" + cell
+				+ " depth=" + Dungeon.depth
+				+ " branch=" + Dungeon.branch
+				+ " heroPos=" + (Dungeon.hero == null ? -1 : Dungeon.hero.pos)
+				+ " levelWidth=" + (Dungeon.level == null ? -1 : Dungeon.level.width())
+				+ " levelHeight=" + (Dungeon.level == null ? -1 : Dungeon.level.height()));
+		select(cell, event.button);
+	}
+
+	private static void webParityLog(String message) {
+		if (DeviceCompat.webParityLoggingEnabled()) {
+			LOG.info("[WEB-PARITY] " + message);
 		}
 	}
 

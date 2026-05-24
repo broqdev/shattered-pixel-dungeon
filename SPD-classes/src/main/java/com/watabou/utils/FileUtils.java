@@ -23,16 +23,29 @@ package com.watabou.utils;
 
 import com.badlogic.gdx.Files;
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Preferences;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.GdxRuntimeException;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
+import java.util.Set;
+import java.util.Base64;
+import java.util.logging.Logger;
 
 public class FileUtils {
+
+	private static final Logger LOG = Logger.getLogger(FileUtils.class.getName());
+	private static final String WEB_SAVE_MIRROR_PREFS = "web-save-mirror";
+	private static final String WEB_SAVE_MIRROR_INDEX = "__index";
+	private static final String WEB_SAVE_MIRROR_FILE_PREFIX = "file.";
 	
 	// Helper methods for setting/using a default base path and file address mode
 	
@@ -124,6 +137,12 @@ public class FileUtils {
 
 	//returns length of a file in bytes, or 0 if file does not exist
 	public static long fileLength( String name ){
+		if (shouldMirrorWebSave(name)) {
+			byte[] mirrored = getMirroredWebSave(name);
+			if (mirrored != null) {
+				return mirrored.length;
+			}
+		}
 		FileHandle file = getFileHandle( name );
 		if (!file.exists() || file.isDirectory()){
 			return 0;
@@ -133,6 +152,7 @@ public class FileUtils {
 	}
 	
 	public static boolean deleteFile( String name ){
+		removeMirroredWebSave(name);
 		return getFileHandle( name ).delete();
 	}
 
@@ -142,16 +162,18 @@ public class FileUtils {
 		byte[] data = new byte[bytes];
 		Arrays.fill(data, (byte)1);
 		getFileHandle( name ).writeBytes(data, false);
+		mirrorWebSave(name, data);
 	}
 	
 	// Directories
 	
 	public static boolean dirExists( String name ){
 		FileHandle dir = getFileHandle( name );
-		return dir.exists() && dir.isDirectory();
+		return dir.exists() && dir.isDirectory() || webSaveMirrorContainsDir(name);
 	}
 	
 	public static boolean deleteDir( String name ){
+		removeMirroredWebSaveDir(name);
 		FileHandle dir = getFileHandle( name );
 		
 		if (dir == null || !dir.isDirectory()){
@@ -176,6 +198,18 @@ public class FileUtils {
 	
 	//only works for base path
 	public static Bundle bundleFromFile( String fileName ) throws IOException{
+		byte[] mirrored = getMirroredWebSave(fileName);
+		if (mirrored != null) {
+			try {
+				return bundleFromStream(new ByteArrayInputStream(mirrored));
+			} catch (IOException e) {
+				webParityLog("web save mirror read failed file=" + fileName
+						+ " bytes=" + mirrored.length
+						+ " error=" + e.getClass().getName());
+				throw e;
+			}
+		}
+
 		try {
 			FileHandle file = getFileHandle( fileName );
 			if (!file.exists() || file.isDirectory() || file.length() == 0) {
@@ -201,6 +235,18 @@ public class FileUtils {
 		try {
 			FileHandle file = getFileHandle(fileName);
 
+			if (Gdx.app != null && DeviceCompat.isWeb()) {
+				// Web local files already update in-memory state atomically on close, while
+				// IndexedDB persistence happens asynchronously. Avoid expanding one save
+				// into temp/delete/rename transactions that can commit independently.
+				byte[] bytes = bundleToBytes(bundle);
+				OutputStream output = file.write(false);
+				output.write(bytes);
+				output.close();
+				mirrorWebSave(fileName, bytes);
+				return;
+			}
+
 			//write to a temp file, then move the files.
 			// This helps prevent save corruption if writing is interrupted
 			if (file.exists()){
@@ -221,6 +267,160 @@ public class FileUtils {
 	private static void bundleToStream( OutputStream output, Bundle bundle ) throws IOException{
 		Bundle.write( bundle, output );
 		output.close();
+	}
+
+	private static byte[] bundleToBytes(Bundle bundle) throws IOException {
+		ByteArrayOutputStream output = new ByteArrayOutputStream();
+		if (!Bundle.write(bundle, output)) {
+			throw new IOException("bundle write failed");
+		}
+		output.close();
+		return output.toByteArray();
+	}
+
+	private static boolean shouldMirrorWebSave(String fileName) {
+		if (Gdx.app == null || !DeviceCompat.isWeb() || fileName == null) {
+			return false;
+		}
+		int slash = fileName.indexOf('/');
+		if (!fileName.startsWith("game") || slash < 5 || !fileName.endsWith(".dat")) {
+			return false;
+		}
+		String leaf = fileName.substring(slash + 1);
+		return leaf.equals("game.dat") || (leaf.startsWith("depth") && leaf.endsWith(".dat"));
+	}
+
+	private static Preferences webSaveMirrorPrefs() {
+		return Gdx.app == null ? null : Gdx.app.getPreferences(WEB_SAVE_MIRROR_PREFS);
+	}
+
+	private static String webSaveMirrorKey(String fileName) {
+		String encoded = Base64.getUrlEncoder().withoutPadding()
+				.encodeToString(fileName.getBytes(StandardCharsets.UTF_8));
+		return WEB_SAVE_MIRROR_FILE_PREFIX + encoded;
+	}
+
+	private static void mirrorWebSave(String fileName, byte[] bytes) {
+		if (!shouldMirrorWebSave(fileName)) {
+			return;
+		}
+		Preferences prefs = webSaveMirrorPrefs();
+		if (prefs == null) {
+			return;
+		}
+		prefs.putString(webSaveMirrorKey(fileName), Base64.getEncoder().encodeToString(bytes));
+		Set<String> index = webSaveMirrorIndex(prefs);
+		index.add(fileName);
+		prefs.putString(WEB_SAVE_MIRROR_INDEX, joinIndex(index));
+		prefs.flush();
+		webParityLog("web save mirror wrote file=" + fileName + " bytes=" + bytes.length);
+	}
+
+	private static byte[] getMirroredWebSave(String fileName) {
+		if (!shouldMirrorWebSave(fileName)) {
+			return null;
+		}
+		Preferences prefs = webSaveMirrorPrefs();
+		if (prefs == null) {
+			return null;
+		}
+		String value = prefs.getString(webSaveMirrorKey(fileName), null);
+		if (value == null || value.isEmpty()) {
+			return null;
+		}
+		try {
+			return Base64.getDecoder().decode(value);
+		} catch (IllegalArgumentException e) {
+			removeMirroredWebSave(fileName);
+			webParityLog("web save mirror decode failed file=" + fileName);
+			return null;
+		}
+	}
+
+	private static void removeMirroredWebSave(String fileName) {
+		if (!shouldMirrorWebSave(fileName)) {
+			return;
+		}
+		Preferences prefs = webSaveMirrorPrefs();
+		if (prefs == null) {
+			return;
+		}
+		prefs.remove(webSaveMirrorKey(fileName));
+		Set<String> index = webSaveMirrorIndex(prefs);
+		if (index.remove(fileName)) {
+			prefs.putString(WEB_SAVE_MIRROR_INDEX, joinIndex(index));
+		}
+		prefs.flush();
+	}
+
+	private static void removeMirroredWebSaveDir(String dirName) {
+		if (Gdx.app == null || !DeviceCompat.isWeb()) {
+			return;
+		}
+		Preferences prefs = webSaveMirrorPrefs();
+		if (prefs == null) {
+			return;
+		}
+		String prefix = dirName.endsWith("/") ? dirName : dirName + "/";
+		Set<String> index = webSaveMirrorIndex(prefs);
+		boolean changed = false;
+		for (String fileName : new ArrayList<>(index)) {
+			if (fileName.startsWith(prefix)) {
+				prefs.remove(webSaveMirrorKey(fileName));
+				index.remove(fileName);
+				changed = true;
+			}
+		}
+		if (changed) {
+			prefs.putString(WEB_SAVE_MIRROR_INDEX, joinIndex(index));
+			prefs.flush();
+		}
+	}
+
+	private static boolean webSaveMirrorContainsDir(String dirName) {
+		if (Gdx.app == null || !DeviceCompat.isWeb()) {
+			return false;
+		}
+		Preferences prefs = webSaveMirrorPrefs();
+		if (prefs == null) {
+			return false;
+		}
+		String prefix = dirName.endsWith("/") ? dirName : dirName + "/";
+		for (String fileName : webSaveMirrorIndex(prefs)) {
+			if (fileName.startsWith(prefix)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private static Set<String> webSaveMirrorIndex(Preferences prefs) {
+		LinkedHashSet<String> index = new LinkedHashSet<>();
+		String raw = prefs.getString(WEB_SAVE_MIRROR_INDEX, "");
+		if (raw == null || raw.isEmpty()) {
+			return index;
+		}
+		for (String fileName : raw.split("\n")) {
+			if (!fileName.isEmpty()) {
+				index.add(fileName);
+			}
+		}
+		return index;
+	}
+
+	private static String joinIndex(Set<String> index) {
+		StringBuilder joined = new StringBuilder();
+		for (String fileName : index) {
+			if (joined.length() > 0) joined.append('\n');
+			joined.append(fileName);
+		}
+		return joined.toString();
+	}
+
+	private static void webParityLog(String message) {
+		if (DeviceCompat.webParityLoggingEnabled()) {
+			LOG.info("[WEB-PARITY] " + message);
+		}
 	}
 
 }

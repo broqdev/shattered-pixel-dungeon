@@ -75,6 +75,7 @@ import com.shatteredpixel.shatteredpixeldungeon.levels.rooms.secret.SecretRoom;
 import com.shatteredpixel.shatteredpixeldungeon.levels.rooms.special.SpecialRoom;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
+import com.shatteredpixel.shatteredpixeldungeon.scenes.InterlevelScene;
 import com.shatteredpixel.shatteredpixeldungeon.ui.QuickSlotButton;
 import com.shatteredpixel.shatteredpixeldungeon.ui.Toolbar;
 import com.shatteredpixel.shatteredpixeldungeon.utils.DungeonSeed;
@@ -83,6 +84,7 @@ import com.watabou.noosa.Game;
 import com.watabou.utils.BArray;
 import com.watabou.utils.Bundlable;
 import com.watabou.utils.Bundle;
+import com.watabou.utils.DeviceCompat;
 import com.watabou.utils.FileUtils;
 import com.watabou.utils.PathFinder;
 import com.watabou.utils.Random;
@@ -101,6 +103,48 @@ import java.util.logging.Logger;
 public class Dungeon {
 
 	private static final Logger LOG = Logger.getLogger(Dungeon.class.getName());
+
+	private enum SaveLifecycle {
+		IDLE,
+		SAVING
+	}
+
+	private static volatile SaveLifecycle saveLifecycle = SaveLifecycle.IDLE;
+
+	interface SaveAllSteps {
+		void fixTime();
+		void updateLevelExplored();
+		void saveLevel(int save) throws IOException;
+		void saveGame(int save) throws IOException;
+		void setGameInProgress(int save);
+	}
+
+	private static final SaveAllSteps DEFAULT_SAVE_ALL_STEPS = new SaveAllSteps() {
+		@Override
+		public void fixTime() {
+			Actor.fixTime();
+		}
+
+		@Override
+		public void updateLevelExplored() {
+			Dungeon.updateLevelExplored();
+		}
+
+		@Override
+		public void saveLevel(int save) throws IOException {
+			Dungeon.saveLevel(save);
+		}
+
+		@Override
+		public void saveGame(int save) {
+			Dungeon.saveGame(save);
+		}
+
+		@Override
+		public void setGameInProgress(int save) {
+			GamesInProgress.set(save);
+		}
+	};
 
 	//enum of items which have limited spawns, records how many have spawned
 	//could all be their own separate numbers, but this allows iterating, much nicer for bundling/initializing.
@@ -231,10 +275,6 @@ public class Dungeon {
 			customSeedText = "";
 			seed = DungeonSeed.randomSeed();
 		}
-		LOG.info("Dungeon.initSeed: seed=" + seed
-				+ " customSeed=" + (customSeedText.isEmpty() ? "<random>" : customSeedText)
-				+ " daily=" + daily
-				+ " dailyReplay=" + dailyReplay);
 	}
 	
 	public static void init() {
@@ -242,9 +282,6 @@ public class Dungeon {
 		initialVersion = version = Game.versionCode;
 		challenges = SPDSettings.challenges();
 		mobsToChampion = 1;
-		LOG.info("Dungeon.init: starting new run version=" + version
-				+ " seed=" + seed
-				+ " challenges=" + challenges);
 
 		Actor.clear();
 		Actor.resetNextID();
@@ -294,9 +331,6 @@ public class Dungeon {
 		Badges.reset();
 		
 		GamesInProgress.selectedClass.initHero( hero );
-		LOG.info("Dungeon.init: hero initialized " + heroSummary(hero)
-				+ " depth=" + depth
-				+ " branch=" + branch);
 	}
 
 	public static boolean isChallenged( int mask ) {
@@ -307,51 +341,7 @@ public class Dungeon {
 		return generatedLevels.contains(depth + 1000*branch);
 	}
 
-	private static boolean shouldLogLevelBringup(int depth, int branch) {
-		return branch == 0 && (depth == 1 || depth == 2);
-	}
-
-	private static String levelSummary(Level level) {
-		if (level == null) {
-			return "level=null";
-		}
-		return "level=" + level.getClass().getSimpleName()
-				+ " depth=" + depth
-				+ " branch=" + branch
-				+ " size=" + level.width() + "x" + level.height()
-				+ " mobs=" + (level.mobs == null ? 0 : level.mobs.size())
-				+ " heaps=" + sparseSize(level.heaps)
-				+ " blobs=" + (level.blobs == null ? 0 : level.blobs.size())
-				+ " traps=" + sparseSize(level.traps)
-				+ " plants=" + sparseSize(level.plants);
-	}
-
-	private static int sparseSize(SparseArray<?> sparse) {
-		return sparse == null ? 0 : sparse.keyArray().length;
-	}
-
-	private static String heroSummary(Hero hero) {
-		if (hero == null) {
-			return "hero=null";
-		}
-		return "hero=" + hero.heroClass
-				+ "/" + hero.subClass
-				+ " lvl=" + hero.lvl
-				+ " hp=" + hero.HP + "/" + hero.HT
-				+ " pos=" + hero.pos
-				+ " alive=" + hero.isAlive()
-				+ " ready=" + hero.ready;
-	}
-	
 	public static Level newLevel() {
-		boolean logBringup = shouldLogLevelBringup(depth, branch);
-		if (logBringup) {
-			LOG.info("Dungeon.newLevel: selecting level depth=" + depth
-					+ " branch=" + branch
-					+ " seedForDepth=" + seedCurDepth()
-					+ " generatedBefore=" + levelHasBeenGenerated(depth, branch));
-		}
-		
 		Dungeon.level = null;
 		Actor.clear();
 		
@@ -429,12 +419,6 @@ public class Dungeon {
 		} else {
 			level = new DeadEndLevel();
 		}
-		if (logBringup) {
-			LOG.info("Dungeon.newLevel: selected " + level.getClass().getName()
-					+ " depth=" + depth
-					+ " branch=" + branch);
-		}
-
 		//dead end levels (and vault levels for now!) get cleared, don't count as generated
 		if (!(level instanceof DeadEndLevel || level instanceof VaultLevel)){
 			//this assumes that we will never have a depth value outside the range 0 to 999
@@ -457,10 +441,6 @@ public class Dungeon {
 		Statistics.qualifiedForBossRemainsBadge = false;
 		
 		level.create();
-		if (logBringup) {
-			LOG.info("Dungeon.newLevel: created " + levelSummary(level)
-					+ " deepestFloor=" + Statistics.deepestFloor);
-		}
 		
 		if (branch == 0) Statistics.qualifiedForNoKilling = !bossLevel();
 		Statistics.qualifiedForBossChallengeBadge = false;
@@ -527,33 +507,21 @@ public class Dungeon {
 	}
 	
 	public static void switchLevel( final Level level, int pos ) {
-		int requestedPos = pos;
-		boolean logBringup = shouldLogLevelBringup(depth, branch);
-		if (logBringup) {
-			LOG.info("Dungeon.switchLevel: starting depth=" + depth
-					+ " branch=" + branch
-					+ " requestedPos=" + requestedPos
-					+ " " + levelSummary(level)
-					+ " " + heroSummary(hero));
-		}
+		LevelPlacement placement = resolveLevelPlacement(level, pos);
+		pos = placement.finalPos;
 
-		//Position of -2 specifically means trying to place the hero the exit
-		if (pos == -2){
-			LevelTransition t = level.getTransition(LevelTransition.Type.REGULAR_EXIT);
-			if (t != null) pos = t.cell();
-		}
-
-		//Place hero at the entrance if they are out of the map (often used for pos = -1)
-		// or if they are in invalid terrain terrain (except in the mining level, where that happens normally)
-		if (pos < 0 || pos >= level.length() || level.invalidHeroPos(pos)){
-			pos = level.getTransition(null).cell();
-		}
-		if (logBringup) {
-			LOG.info("Dungeon.switchLevel: resolved hero position requestedPos=" + requestedPos
-					+ " finalPos=" + pos
-					+ " entrance=" + level.entrance()
-					+ " exit=" + level.exit());
-		}
+		webParityLog("switchLevel placement save=" + GamesInProgress.curSlot
+				+ " depth=" + depth
+				+ " branch=" + branch
+				+ " level=" + level.getClass().getName()
+				+ " requestedPos=" + placement.requestedPos
+				+ " finalPos=" + pos
+				+ " reason=" + placement.reason
+				+ " entrance=" + level.entrance()
+				+ " exit=" + level.exit()
+				+ " width=" + level.width()
+				+ " height=" + level.height()
+				+ " length=" + level.length());
 		
 		PathFinder.setMapSize(level.width(), level.height());
 		
@@ -589,18 +557,52 @@ public class Dungeon {
 
 		observe();
 		try {
-			saveAll();
+			saveAll("switchLevel");
 		} catch (IOException e) {
 			ShatteredPixelDungeon.reportException(e);
 			/*This only catches IO errors. Yes, this means things can go wrong, and they can go wrong catastrophically.
 			But when they do the user will get a nice 'report this issue' dialogue, and I can fix the bug.*/
 		}
-		if (logBringup) {
-			LOG.info("Dungeon.switchLevel: complete depth=" + depth
-					+ " branch=" + branch
-					+ " " + heroSummary(hero)
-					+ " viewDistance=" + hero.viewDistance
-					+ " levelMobs=" + level.mobs.size());
+		webParityLog("switchLevel complete " + saveSnapshot(GamesInProgress.curSlot));
+	}
+
+	static LevelPlacement resolveLevelPlacement(final Level level, int pos) {
+		int requestedPos = pos;
+		String placementReason = "requested";
+
+		//Position of -2 specifically means trying to place the hero the exit
+		if (pos == -2){
+			LevelTransition t = level.getTransition(LevelTransition.Type.REGULAR_EXIT);
+			if (t != null) {
+				pos = t.cell();
+				placementReason = "regularExit";
+			} else {
+				placementReason = "missingRegularExit";
+			}
+		}
+
+		//Place hero at the entrance if they are out of the map (often used for pos = -1)
+		// or if they are in invalid terrain terrain (except in the mining level, where that happens normally)
+		boolean outOfBounds = pos < 0 || pos >= level.length();
+		boolean invalidHeroPos = !outOfBounds && level.invalidHeroPos(pos);
+		if (outOfBounds || invalidHeroPos){
+			LevelTransition fallback = level.getTransition(null);
+			pos = fallback.cell();
+			placementReason = outOfBounds ? "fallbackOutOfBounds" : "fallbackInvalidHeroPos";
+		}
+
+		return new LevelPlacement(requestedPos, pos, placementReason);
+	}
+
+	static final class LevelPlacement {
+		final int requestedPos;
+		final int finalPos;
+		final String reason;
+
+		private LevelPlacement(int requestedPos, int finalPos, String reason) {
+			this.requestedPos = requestedPos;
+			this.finalPos = finalPos;
+			this.reason = reason;
 		}
 	}
 
@@ -791,15 +793,35 @@ public class Dungeon {
 	}
 	
 	public static void saveAll() throws IOException {
+		saveAll("unspecified");
+	}
+
+	public static void saveAll(String reason) throws IOException {
 		if (hero != null && (hero.isAlive() || WndResurrect.instance != null)) {
-			
-			Actor.fixTime();
-			updateLevelExplored();
-			saveGame( GamesInProgress.curSlot );
-			saveLevel( GamesInProgress.curSlot );
+			saveAll(GamesInProgress.curSlot, reason, DEFAULT_SAVE_ALL_STEPS);
+		}
+	}
 
-			GamesInProgress.set( GamesInProgress.curSlot );
+	static void saveAll(int save, SaveAllSteps steps) throws IOException {
+		saveAll(save, "test", steps);
+	}
 
+	static void saveAll(int save, String reason, SaveAllSteps steps) throws IOException {
+		saveLifecycle = SaveLifecycle.SAVING;
+		webParityLog("saveAll begin " + saveSnapshot(save, reason));
+		try {
+			steps.fixTime();
+			steps.updateLevelExplored();
+			steps.saveLevel( save );
+			steps.saveGame( save );
+
+			steps.setGameInProgress( save );
+			webParityLog("saveAll complete " + saveSnapshot(save, reason));
+		} catch (IOException e) {
+			webParityLog("saveAll failed " + saveSnapshot(save, reason) + " error=" + e.getClass().getName());
+			throw e;
+		} finally {
+			saveLifecycle = SaveLifecycle.IDLE;
 		}
 	}
 	
@@ -907,32 +929,167 @@ public class Dungeon {
 
 		Statistics.restoreFromBundle( bundle );
 		Generator.restoreFromBundle( bundle );
+		webParityLog("loadGame complete save=" + save
+				+ " depth=" + depth
+				+ " branch=" + branch
+				+ " heroPos=" + (hero == null ? -1 : hero.pos)
+				+ " fullLoad=" + fullLoad
+				+ " gameFile=" + GamesInProgress.gameFile(save));
 
 	}
 	
 	public static Level loadLevel( int save ) throws IOException {
-		boolean logBringup = shouldLogLevelBringup(depth, branch);
-		if (logBringup) {
-			LOG.info("Dungeon.loadLevel: loading save=" + save
-					+ " depth=" + depth
-					+ " branch=" + branch);
-		}
-		
 		Dungeon.level = null;
 		Actor.clear();
 
-		Bundle bundle = FileUtils.bundleFromFile( GamesInProgress.depthFile( save, depth, branch ));
+		String depthFile = GamesInProgress.depthFile( save, depth, branch );
+		webParityLog("loadLevel begin save=" + save
+				+ " depth=" + depth
+				+ " branch=" + branch
+				+ " depthFile=" + depthFile);
+		Bundle bundle = FileUtils.bundleFromFile( depthFile );
 
-		Level level = (Level)bundle.get( LEVEL );
+			Level level = (Level)bundle.get( LEVEL );
+			LevelSaveIdentity identity = resolveLevelSaveIdentity(save, depth, branch, depthFile, level, hero,
+					transitionPlacementPending());
+			if (identity.mismatch && !identity.transitionPlacementPending) {
+				webParityWarning("loadLevel identity mismatch " + identity.summary());
+			} else {
+				webParityLog("loadLevel identity " + identity.summary());
+			}
 
 		if (level == null){
 			throw new IOException();
 		} else {
-			if (logBringup) {
-				LOG.info("Dungeon.loadLevel: loaded " + levelSummary(level));
-			}
+			webParityLog("loadLevel complete save=" + save
+					+ " depth=" + depth
+					+ " branch=" + branch
+					+ " depthFile=" + depthFile
+					+ " level=" + level.getClass().getName()
+					+ " entrance=" + level.entrance()
+					+ " exit=" + level.exit()
+					+ " heroPos=" + (hero == null ? -1 : hero.pos));
 			return level;
 		}
+	}
+
+	static LevelSaveIdentity resolveLevelSaveIdentity(int save, int depth, int branch, String depthFile, Level level, Hero hero) {
+		return resolveLevelSaveIdentity(save, depth, branch, depthFile, level, hero, false);
+	}
+
+	static LevelSaveIdentity resolveLevelSaveIdentity(int save, int depth, int branch, String depthFile,
+													  Level level, Hero hero, boolean transitionLoad) {
+		int heroPos = hero == null ? -1 : hero.pos;
+		int entrance = level == null ? -1 : level.entrance();
+		int exit = level == null ? -1 : level.exit();
+		int width = level == null ? -1 : level.width();
+		int height = level == null ? -1 : level.height();
+		int length = level == null ? -1 : level.length();
+		String levelClass = level == null ? "none" : level.getClass().getName();
+		String reason = "heroPositionCompatible";
+
+		if (level == null) {
+			reason = "missingLevel";
+		} else if (hero == null) {
+			reason = "missingHero";
+		} else if (hero.pos < 0 || hero.pos >= level.length()) {
+			reason = "heroOutOfBounds";
+		} else if (level.invalidHeroPos(hero.pos)) {
+			reason = "heroInvalidPosition";
+			}
+
+			boolean mismatch = !"heroPositionCompatible".equals(reason);
+			boolean transitionPlacementPending = transitionLoad
+					&& ("heroOutOfBounds".equals(reason) || "heroInvalidPosition".equals(reason));
+			return new LevelSaveIdentity(save, depth, branch, depthFile, levelClass, heroPos, entrance, exit, width, height, length,
+					mismatch, reason, transitionPlacementPending);
+	}
+
+	private static boolean transitionPlacementPending() {
+		return InterlevelScene.curTransition != null
+				&& InterlevelScene.mode != InterlevelScene.Mode.CONTINUE
+				&& InterlevelScene.mode != InterlevelScene.Mode.NONE;
+	}
+
+	static final class LevelSaveIdentity {
+		final int save;
+		final int depth;
+		final int branch;
+		final String depthFile;
+		final String levelClass;
+		final int heroPos;
+		final int entrance;
+		final int exit;
+		final int width;
+		final int height;
+		final int length;
+		final boolean mismatch;
+		final String reason;
+		final boolean transitionPlacementPending;
+
+		private LevelSaveIdentity(int save, int depth, int branch, String depthFile, String levelClass, int heroPos,
+								 int entrance, int exit, int width, int height, int length, boolean mismatch, String reason,
+								 boolean transitionPlacementPending) {
+			this.save = save;
+			this.depth = depth;
+			this.branch = branch;
+			this.depthFile = depthFile;
+			this.levelClass = levelClass;
+			this.heroPos = heroPos;
+			this.entrance = entrance;
+			this.exit = exit;
+			this.width = width;
+			this.height = height;
+			this.length = length;
+			this.mismatch = mismatch;
+			this.reason = reason;
+			this.transitionPlacementPending = transitionPlacementPending;
+		}
+
+		String summary() {
+			return "save=" + save
+					+ " depth=" + depth
+					+ " branch=" + branch
+					+ " depthFile=" + depthFile
+					+ " level=" + levelClass
+					+ " heroPos=" + heroPos
+					+ " entrance=" + entrance
+					+ " exit=" + exit
+					+ " width=" + width
+					+ " height=" + height
+						+ " length=" + length
+						+ " mismatch=" + mismatch
+						+ " reason=" + reason
+						+ " transitionPlacementPending=" + transitionPlacementPending;
+		}
+	}
+
+	private static void webParityLog(String message) {
+		if (DeviceCompat.webParityLoggingEnabled()) {
+			LOG.info("[WEB-PARITY] " + message);
+		}
+	}
+
+	private static void webParityWarning(String message) {
+		if (DeviceCompat.webParityLoggingEnabled()) {
+			LOG.warning("[WEB-PARITY] " + message);
+		}
+	}
+
+	private static String saveSnapshot(int save) {
+		return saveSnapshot(save, "none");
+	}
+
+	private static String saveSnapshot(int save, String reason) {
+		return "save=" + save
+				+ " reason=" + reason
+				+ " saveLifecycle=" + saveLifecycle
+				+ " depth=" + depth
+				+ " branch=" + branch
+				+ " heroPos=" + (hero == null ? -1 : hero.pos)
+				+ " heroReady=" + (hero != null && hero.ready)
+				+ " gameFile=" + GamesInProgress.gameFile(save)
+				+ " depthFile=" + GamesInProgress.depthFile(save, depth, branch);
 	}
 	
 	public static void deleteGame( int save, boolean deleteLevels ) {

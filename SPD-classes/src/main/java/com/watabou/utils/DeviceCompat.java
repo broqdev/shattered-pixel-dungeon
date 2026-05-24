@@ -58,8 +58,17 @@ public class DeviceCompat {
 	public static boolean isDebug(){
 		return Game.version.contains("INDEV");
 	}
+
+	public static boolean webParityLoggingEnabled(){
+		return Gdx.app != null
+				&& isWeb()
+				&& (Game.platform == null || Game.platform.webParityLoggingEnabled());
+	}
 	
 	public static void log( String tag, String message ){
+		if (isWeb()) {
+			return;
+		}
 		Gdx.app.log( tag, message );
 	}
 
