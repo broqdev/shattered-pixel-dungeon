@@ -15,6 +15,9 @@ release/
 # Local configuration file (sdk path, etc)
 local.properties
 
+# macOS metadata
+.DS_Store
+
 #intellij project files
 *.iml
 *.idea
