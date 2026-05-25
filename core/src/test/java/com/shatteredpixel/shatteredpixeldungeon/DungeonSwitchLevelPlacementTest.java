@@ -80,6 +80,26 @@ public class DungeonSwitchLevelPlacementTest {
 		assertEquals("regularExit", placement.reason);
 	}
 
+	@Test
+	public void exitSentinelUsesExitTerrainWhenTransitionRecordIsMissing() {
+		TestLevel level = new TestLevel();
+		level.transitions.remove(1);
+
+		Dungeon.LevelPlacement placement = Dungeon.resolveLevelPlacement(level, -2);
+
+		assertEquals(-2, placement.requestedPos);
+		assertEquals(18, placement.finalPos);
+		assertEquals("regularExit", placement.reason);
+	}
+
+	@Test
+	public void exitAccessorUsesExitTerrainBeforeEntranceFallback() {
+		TestLevel level = new TestLevel();
+		level.transitions.remove(1);
+
+		assertEquals(18, level.exit());
+	}
+
 	private static class TestLevel extends Level {
 
 		private TestLevel() {

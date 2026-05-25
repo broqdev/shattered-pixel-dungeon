@@ -84,6 +84,7 @@ import com.shatteredpixel.shatteredpixeldungeon.tiles.DungeonTerrainTilemap;
 import com.shatteredpixel.shatteredpixeldungeon.tiles.DungeonTileSheet;
 import com.shatteredpixel.shatteredpixeldungeon.tiles.DungeonTilemap;
 import com.shatteredpixel.shatteredpixeldungeon.tiles.DungeonWallsTilemap;
+import com.shatteredpixel.shatteredpixeldungeon.tiles.EternalFireTilemap;
 import com.shatteredpixel.shatteredpixeldungeon.tiles.FogOfWar;
 import com.shatteredpixel.shatteredpixeldungeon.tiles.GridTileMap;
 import com.shatteredpixel.shatteredpixeldungeon.tiles.RaisedTerrainTilemap;
@@ -166,6 +167,7 @@ public class GameScene extends PixelScene {
 	private DungeonTerrainTilemap tiles;
 	private GridTileMap visualGrid;
 	private TerrainFeaturesTilemap terrainFeatures;
+	private EternalFireTilemap eternalFireTiles;
 	private RaisedTerrainTilemap raisedTerrain;
 	private DungeonWallsTilemap walls;
 	private WallBlockingTilemap wallBlocking;
@@ -200,6 +202,7 @@ public class GameScene extends PixelScene {
 	private Group emoicons;
 	private Group overFogEffects;
 	private Group healthIndicators;
+	private int lastLoggedEternalFireFallbackCells = -1;
 
 	private InventoryPane inventory;
 	private static boolean invVisible = true;
@@ -301,6 +304,10 @@ public class GameScene extends PixelScene {
 
 		terrainFeatures = new TerrainFeaturesTilemap(Dungeon.level.plants, Dungeon.level.traps);
 		terrain.add(terrainFeatures);
+
+		eternalFireTiles = new EternalFireTilemap();
+		terrain.add(eternalFireTiles);
+		logEternalFireFallback("create");
 		
 		levelVisuals = Dungeon.level.addVisuals();
 		add(levelVisuals);
@@ -358,9 +365,20 @@ public class GameScene extends PixelScene {
 		gases = new Group();
 		add( gases );
 
+		if (webParityLogging()) {
+			webParityLog("create blobs before attach " + actorThreadSnapshot()
+					+ " " + Dungeon.level.blobDebugSummary());
+		}
 		for (Blob blob : Dungeon.level.blobs.values()) {
+			if (webParityLogging()) {
+				webParityLog("create blob reset emitter " + blobSnapshot(blob));
+			}
 			blob.emitter = null;
 			addBlobSprite( blob );
+		}
+		if (webParityLogging()) {
+			webParityLog("create blobs after attach " + actorThreadSnapshot()
+					+ " " + Dungeon.level.blobDebugSummary());
 		}
 
 
@@ -1172,8 +1190,17 @@ public class GameScene extends PixelScene {
 	}
 	
 	private void addBlobSprite( final Blob gas ) {
+		if (webParityLogging()) {
+			webParityLog("addBlobSprite begin emitterNull=" + (gas.emitter == null)
+					+ " " + blobSnapshot(gas));
+		}
 		if (gas.emitter == null) {
 			gases.add( new BlobEmitter( gas ) );
+			if (webParityLogging()) {
+				webParityLog("addBlobSprite attached " + blobSnapshot(gas));
+			}
+		} else if (webParityLogging()) {
+			webParityLog("addBlobSprite skipped existing emitter " + blobSnapshot(gas));
 		}
 	}
 	
@@ -1217,6 +1244,68 @@ public class GameScene extends PixelScene {
 
 	private static boolean webParityLogging() {
 		return DeviceCompat.webParityLoggingEnabled();
+	}
+
+	private static String blobSnapshot(Blob blob) {
+		if (blob == null) {
+			return "blob=null";
+		}
+		return "blob=" + blob.getClass().getName()
+				+ " volume=" + blob.volume
+				+ " emitter=" + (blob.emitter == null ? "null" : blob.emitter.getClass().getName())
+				+ " area=" + blob.area.left + ',' + blob.area.top
+				+ '-' + blob.area.right + ',' + blob.area.bottom
+				+ " activeCells=" + blobActiveCellCount(blob)
+				+ " sample=[" + blobCellSample(blob) + ']';
+	}
+
+	private static int blobActiveCellCount(Blob blob) {
+		if (blob.cur == null) {
+			return 0;
+		}
+		int active = 0;
+		for (int value : blob.cur) {
+			if (value > 0) {
+				active++;
+			}
+		}
+		return active;
+	}
+
+	private static String blobCellSample(Blob blob) {
+		if (blob.cur == null) {
+			return "cur=null";
+		}
+		StringBuilder sample = new StringBuilder();
+		int active = 0;
+		for (int i = 0; i < blob.cur.length; i++) {
+			if (blob.cur[i] > 0) {
+				if (active < 12) {
+					if (sample.length() > 0) {
+						sample.append(',');
+					}
+					sample.append(i).append(':').append(blob.cur[i]);
+				}
+				active++;
+			}
+		}
+		if (active > 12) {
+			sample.append(",...");
+		}
+		return sample.toString();
+	}
+
+	private void logEternalFireFallback(String event) {
+		if (!webParityLogging()) {
+			return;
+		}
+		int activeCells = EternalFireTilemap.activeCellCount();
+		if (activeCells != lastLoggedEternalFireFallbackCells || activeCells > 0) {
+			webParityLog("eternalFire fallback " + event
+					+ " activeCells=" + activeCells
+					+ " sample=[" + EternalFireTilemap.activeCellSample() + ']');
+			lastLoggedEternalFireFallbackCells = activeCells;
+		}
 	}
 
 	private static String actorThreadSnapshot() {
@@ -1461,6 +1550,8 @@ public class GameScene extends PixelScene {
 			scene.tiles.map(Dungeon.level.map, Dungeon.level.width() );
 			scene.visualGrid.map(Dungeon.level.map, Dungeon.level.width() );
 			scene.terrainFeatures.map(Dungeon.level.map, Dungeon.level.width() );
+			scene.eternalFireTiles.map(Dungeon.level.map, Dungeon.level.width() );
+			scene.logEternalFireFallback("resetMap");
 			scene.raisedTerrain.map(Dungeon.level.map, Dungeon.level.width() );
 			scene.walls.map(Dungeon.level.map, Dungeon.level.width() );
 		}
@@ -1473,6 +1564,8 @@ public class GameScene extends PixelScene {
 			scene.tiles.updateMap();
 			scene.visualGrid.updateMap();
 			scene.terrainFeatures.updateMap();
+			scene.eternalFireTiles.updateMap();
+			scene.logEternalFireFallback("updateMap");
 			scene.raisedTerrain.updateMap();
 			scene.walls.updateMap();
 			updateFog();
@@ -1484,6 +1577,8 @@ public class GameScene extends PixelScene {
 			scene.tiles.updateMapCell( cell );
 			scene.visualGrid.updateMapCell( cell );
 			scene.terrainFeatures.updateMapCell( cell );
+			scene.eternalFireTiles.updateMapCell( cell );
+			scene.logEternalFireFallback("updateMapCell cell=" + cell);
 			scene.raisedTerrain.updateMapCell( cell );
 			scene.walls.updateMapCell( cell );
 			//update adjacent cells too

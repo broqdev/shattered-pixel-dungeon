@@ -36,17 +36,25 @@ import java.nio.file.Path;
 public class BuildWeb {
 
 	private static final String WEB_PARITY_LOGGING_PLACEHOLDER = "%WEB_PARITY_LOGGING%";
+	private static final String WEB_PARITY_LOGGING_BEGIN = "/* WEB_PARITY_LOGGING_BEGIN */";
+	private static final String WEB_PARITY_LOGGING_END = "/* WEB_PARITY_LOGGING_END */";
 
 	public static void main(String[] args) {
 		boolean release = false;
+		Boolean webParityLoggingOverride = null;
 		File outputDir = new File("build/dist");
 		for (int i = 0; i < args.length; i++) {
 			if ("--release".equals(args[i])) {
 				release = true;
+			} else if ("--web-parity-logging".equals(args[i])) {
+				webParityLoggingOverride = true;
+			} else if ("--no-web-parity-logging".equals(args[i])) {
+				webParityLoggingOverride = false;
 			} else if ("--output".equals(args[i]) && i + 1 < args.length) {
 				outputDir = new File(args[++i]);
 			}
 		}
+		boolean webParityLogging = webParityLoggingOverride != null ? webParityLoggingOverride : !release;
 
 		WebBackend backend = new WebBackend()
 				.setHtmlTitle("Shattered Pixel Dungeon")
@@ -67,7 +75,7 @@ public class BuildWeb {
 				.setObfuscated(false)
 				.build(outputDir);
 
-		configureWebParityLogging(outputDir, !release);
+		configureWebParityLogging(outputDir, webParityLogging);
 	}
 
 	private static void configureWebParityLogging(File outputDir, boolean enabled) {
@@ -77,11 +85,26 @@ public class BuildWeb {
 			if (!html.contains(WEB_PARITY_LOGGING_PLACEHOLDER)) {
 				throw new IllegalStateException("Missing " + WEB_PARITY_LOGGING_PLACEHOLDER + " in " + index);
 			}
-			Files.writeString(index,
-					html.replace(WEB_PARITY_LOGGING_PLACEHOLDER, Boolean.toString(enabled)),
-					StandardCharsets.UTF_8);
+			Files.writeString(index, configureWebParityLogging(html, enabled), StandardCharsets.UTF_8);
 		} catch (IOException e) {
 			throw new RuntimeException("Unable to configure web parity logging in " + index, e);
 		}
+	}
+
+	static String configureWebParityLogging(String html, boolean enabled) {
+		if (enabled) {
+			return html.replace(WEB_PARITY_LOGGING_PLACEHOLDER, "true");
+		}
+
+		int begin = html.indexOf(WEB_PARITY_LOGGING_BEGIN);
+		int end = html.indexOf(WEB_PARITY_LOGGING_END);
+		if (begin < 0 || end < begin) {
+			throw new IllegalStateException("Missing web parity logging block markers");
+		}
+		end += WEB_PARITY_LOGGING_END.length();
+		String disabledShim = "window.__shpdWebParityLogging = false;\n"
+				+ "            function logWebParity() {\n"
+				+ "            }";
+		return html.substring(0, begin) + disabledShim + html.substring(end);
 	}
 }

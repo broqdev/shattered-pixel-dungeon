@@ -84,6 +84,78 @@ public abstract class PlatformSupport {
 		return false;
 	}
 
+	public BrowserDataBackup browserDataBackup(){
+		return BrowserDataBackup.UNAVAILABLE;
+	}
+
+	public interface BrowserDataBackup {
+
+		BrowserDataBackup UNAVAILABLE = new BrowserDataBackup() {
+			@Override
+			public boolean isAvailable() {
+				return false;
+			}
+
+			@Override
+			public void exportData(BrowserDataBackupCallback callback) {
+				completeUnavailable(callback);
+			}
+
+			@Override
+			public void importData(BrowserDataBackupCallback callback) {
+				completeUnavailable(callback);
+			}
+
+			private void completeUnavailable(BrowserDataBackupCallback callback) {
+				if (callback != null) {
+					callback.onComplete(BrowserDataBackupResult.unavailable());
+				}
+			}
+		};
+
+		boolean isAvailable();
+
+		void exportData(BrowserDataBackupCallback callback);
+
+		void importData(BrowserDataBackupCallback callback);
+	}
+
+	public interface BrowserDataBackupCallback {
+
+		void onComplete(BrowserDataBackupResult result);
+	}
+
+	public static class BrowserDataBackupResult {
+
+		public final boolean success;
+		public final String message;
+		public final int localStorageKeys;
+		public final int indexedDbRecords;
+		public final long bytes;
+
+		public BrowserDataBackupResult(boolean success, String message, int localStorageKeys,
+				int indexedDbRecords, long bytes) {
+			this.success = success;
+			this.message = message;
+			this.localStorageKeys = localStorageKeys;
+			this.indexedDbRecords = indexedDbRecords;
+			this.bytes = bytes;
+		}
+
+		public static BrowserDataBackupResult unavailable() {
+			return failure("Browser Data Backup is not available on this platform.");
+		}
+
+		public static BrowserDataBackupResult failure(String message) {
+			return new BrowserDataBackupResult(false, message, 0, 0, 0);
+		}
+
+		public static BrowserDataBackupResult success(String message, int localStorageKeys,
+				int indexedDbRecords, long bytes) {
+			return new BrowserDataBackupResult(true, message, localStorageKeys, indexedDbRecords, bytes);
+		}
+	}
+
 	public void setOnscreenKeyboardVisible(boolean value, boolean multiline){
 		//by default ignore multiline
 		Gdx.input.setOnscreenKeyboardVisible(value, Input.OnscreenKeyboardType.Default);

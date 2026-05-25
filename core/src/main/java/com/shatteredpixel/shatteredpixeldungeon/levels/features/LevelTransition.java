@@ -68,21 +68,38 @@ public class LevelTransition extends Rect implements Bundlable {
 		set(p.x, p.y, p.x, p.y);
 		this.type = type;
 		switch (type){
-			case REGULAR_ENTRANCE: default:
-				destDepth = Dungeon.depth-1;
-				destBranch = Dungeon.branch;
-				destType = Type.REGULAR_EXIT;
-				break;
 			case REGULAR_EXIT:
 				destDepth = Dungeon.depth+1;
 				destBranch = Dungeon.branch;
-				destType = Type.REGULAR_ENTRANCE;
 				break;
 			case SURFACE:
 				destDepth = 0;
 				destBranch = 0;
-				destType = null;
 				break;
+			case REGULAR_ENTRANCE: default:
+				destDepth = Dungeon.depth-1;
+				destBranch = Dungeon.branch;
+				break;
+		}
+		destType = defaultDestType(type);
+	}
+
+	public static Type defaultDestType(Type type) {
+		if (type == null) {
+			return null;
+		}
+		switch (type) {
+			case REGULAR_ENTRANCE:
+				return Type.REGULAR_EXIT;
+			case REGULAR_EXIT:
+				return Type.REGULAR_ENTRANCE;
+			case BRANCH_ENTRANCE:
+				return Type.BRANCH_EXIT;
+			case BRANCH_EXIT:
+				return Type.BRANCH_ENTRANCE;
+			case SURFACE:
+			default:
+				return null;
 		}
 	}
 
@@ -152,21 +169,6 @@ public class LevelTransition extends Rect implements Bundlable {
 		destDepth = bundle.getInt(DEST_DEPTH);
 		destBranch = bundle.getInt(DEST_BRANCH);
 		if (bundle.contains(DEST_TYPE)) destType = bundle.getEnum(DEST_TYPE, Type.class);
-		if (destType == null && type != null) {
-			switch (type) {
-				case REGULAR_ENTRANCE:
-					destType = Type.REGULAR_EXIT;
-					break;
-				case REGULAR_EXIT:
-					destType = Type.REGULAR_ENTRANCE;
-					break;
-				case BRANCH_ENTRANCE:
-					destType = Type.BRANCH_EXIT;
-					break;
-				case BRANCH_EXIT:
-					destType = Type.BRANCH_ENTRANCE;
-					break;
-			}
-		}
+		if (destType == null) destType = defaultDestType(type);
 	}
 }

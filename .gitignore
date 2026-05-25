@@ -17,6 +17,8 @@ local.properties
 
 # macOS metadata
 .DS_Store
+__MACOSX/
+*.zip
 
 #intellij project files
 *.iml

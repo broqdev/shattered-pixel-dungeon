@@ -28,9 +28,12 @@ import com.badlogic.gdx.graphics.g2d.PixmapPacker;
 import com.badlogic.gdx.graphics.g2d.freetype.FreeTypeFontGenerator;
 import com.github.xpenatan.gdx.teavm.backends.web.WebApplication;
 import com.shatteredpixel.shatteredpixeldungeon.SPDSettings;
+import com.watabou.noosa.Game;
 import com.watabou.utils.Point;
 import com.watabou.utils.PlatformSupport;
 import org.teavm.jso.JSBody;
+import org.teavm.jso.JSFunctor;
+import org.teavm.jso.JSObject;
 
 import java.util.HashMap;
 import java.util.logging.Logger;
@@ -50,6 +53,7 @@ public class WebPlatformSupport extends PlatformSupport {
 			"(?<= )|(?= )|(?<=\n)|(?=\n)|(?<=_)|(?=_)|(?<=\\*\\*)|(?=\\*\\*)");
 
 	private boolean defaultUiApplied;
+	private final BrowserDataBackup browserDataBackup = new WebBrowserDataBackup();
 
 	@Override
 	public void updateDisplaySize() {
@@ -74,6 +78,74 @@ public class WebPlatformSupport extends PlatformSupport {
 
 	@JSBody(script = "return typeof window !== 'undefined' && window.__shpdWebParityLogging === true;")
 	private static native boolean webParityLoggingEnabledNative();
+
+	@Override
+	public BrowserDataBackup browserDataBackup() {
+		return browserDataBackup;
+	}
+
+	private static class WebBrowserDataBackup implements BrowserDataBackup {
+
+		@Override
+		public boolean isAvailable() {
+			return browserDataBackupAvailableNative();
+		}
+
+		@Override
+		public void exportData(BrowserDataBackupCallback callback) {
+			if (!isAvailable()) {
+				complete(callback, BrowserDataBackupResult.unavailable());
+				return;
+			}
+			exportDataNative(Game.version, (success, message, localStorageKeys, indexedDbRecords, bytes) ->
+					complete(callback, result(success, message, localStorageKeys, indexedDbRecords, bytes)));
+		}
+
+		@Override
+		public void importData(BrowserDataBackupCallback callback) {
+			if (!isAvailable()) {
+				complete(callback, BrowserDataBackupResult.unavailable());
+				return;
+			}
+			importDataNative((success, message, localStorageKeys, indexedDbRecords, bytes) ->
+					complete(callback, result(success, message, localStorageKeys, indexedDbRecords, bytes)));
+		}
+
+		private void complete(BrowserDataBackupCallback callback, BrowserDataBackupResult result) {
+			if (callback != null) {
+				callback.onComplete(result);
+			}
+		}
+
+		private BrowserDataBackupResult result(boolean success, String message, int localStorageKeys,
+				int indexedDbRecords, double bytes) {
+			long byteCount = Double.isNaN(bytes) || bytes < 0 ? 0 : (long)bytes;
+			if (success) {
+				return BrowserDataBackupResult.success(message, localStorageKeys, indexedDbRecords, byteCount);
+			} else {
+				return BrowserDataBackupResult.failure(message);
+			}
+		}
+
+		@JSFunctor
+		private interface BrowserDataBackupCompletion extends JSObject {
+			void complete(boolean success, String message, int localStorageKeys, int indexedDbRecords, double bytes);
+		}
+
+		@JSBody(script = "return typeof window !== 'undefined'"
+				+ " && !!window.__shpdBrowserDataBackup"
+				+ " && typeof window.__shpdBrowserDataBackup.available === 'function'"
+				+ " && window.__shpdBrowserDataBackup.available();")
+		private static native boolean browserDataBackupAvailableNative();
+
+		@JSBody(params = { "gameVersion", "completion" },
+				script = "window.__shpdBrowserDataBackup.exportData(gameVersion, completion);")
+		private static native void exportDataNative(String gameVersion, BrowserDataBackupCompletion completion);
+
+		@JSBody(params = { "completion" },
+				script = "window.__shpdBrowserDataBackup.importData(completion);")
+		private static native void importDataNative(BrowserDataBackupCompletion completion);
+	}
 
 	@Override
 	public boolean supportsFullScreen() {

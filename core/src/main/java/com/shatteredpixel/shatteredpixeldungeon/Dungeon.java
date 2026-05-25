@@ -32,6 +32,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.MagicalSight;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.MindVision;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.RevealedArea;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Terror;
+import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.Blob;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Talent;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.abilities.cleric.PowerOfMany;
@@ -69,13 +70,17 @@ import com.shatteredpixel.shatteredpixeldungeon.levels.PrisonLevel;
 import com.shatteredpixel.shatteredpixeldungeon.levels.RegularLevel;
 import com.shatteredpixel.shatteredpixeldungeon.levels.SewerBossLevel;
 import com.shatteredpixel.shatteredpixeldungeon.levels.SewerLevel;
+import com.shatteredpixel.shatteredpixeldungeon.levels.Terrain;
 import com.shatteredpixel.shatteredpixeldungeon.levels.VaultLevel;
 import com.shatteredpixel.shatteredpixeldungeon.levels.features.LevelTransition;
 import com.shatteredpixel.shatteredpixeldungeon.levels.rooms.secret.SecretRoom;
+import com.shatteredpixel.shatteredpixeldungeon.levels.rooms.special.PitRoom;
 import com.shatteredpixel.shatteredpixeldungeon.levels.rooms.special.SpecialRoom;
+import com.shatteredpixel.shatteredpixeldungeon.levels.rooms.special.WeakFloorRoom;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.InterlevelScene;
+import com.shatteredpixel.shatteredpixeldungeon.tiles.CustomTilemap;
 import com.shatteredpixel.shatteredpixeldungeon.ui.QuickSlotButton;
 import com.shatteredpixel.shatteredpixeldungeon.ui.Toolbar;
 import com.shatteredpixel.shatteredpixeldungeon.utils.DungeonSeed;
@@ -519,9 +524,14 @@ public class Dungeon {
 				+ " reason=" + placement.reason
 				+ " entrance=" + level.entrance()
 				+ " exit=" + level.exit()
+				+ " requestedCell={" + level.cellDebugSummary(placement.requestedPos) + "}"
+				+ " finalCell={" + level.cellDebugSummary(pos) + "}"
 				+ " width=" + level.width()
 				+ " height=" + level.height()
-				+ " length=" + level.length());
+				+ " length=" + level.length()
+				+ " " + level.transitionDebugSummary()
+				+ " " + level.transitionTerrainDebugSummary()
+				+ " " + level.blobDebugSummary());
 		
 		PathFinder.setMapSize(level.width(), level.height());
 		
@@ -572,9 +582,9 @@ public class Dungeon {
 
 		//Position of -2 specifically means trying to place the hero the exit
 		if (pos == -2){
-			LevelTransition t = level.getTransition(LevelTransition.Type.REGULAR_EXIT);
-			if (t != null) {
-				pos = t.cell();
+			int exitCell = level.transitionCell(LevelTransition.Type.REGULAR_EXIT);
+			if (exitCell != -1) {
+				pos = exitCell;
 				placementReason = "regularExit";
 			} else {
 				placementReason = "missingRegularExit";
@@ -968,7 +978,11 @@ public class Dungeon {
 					+ " level=" + level.getClass().getName()
 					+ " entrance=" + level.entrance()
 					+ " exit=" + level.exit()
-					+ " heroPos=" + (hero == null ? -1 : hero.pos));
+					+ " heroPos=" + (hero == null ? -1 : hero.pos)
+					+ " heroCell={" + level.cellDebugSummary(hero == null ? -1 : hero.pos) + "}"
+					+ " " + level.transitionDebugSummary()
+					+ " " + level.transitionTerrainDebugSummary()
+					+ " " + level.blobDebugSummary());
 			return level;
 		}
 	}
@@ -1192,6 +1206,9 @@ public class Dungeon {
 	
 		GameScene.updateFog(l, t, width, height);
 
+		recordVisibleCustomTileLandmarks();
+		recordVisibleTerrainLandmarks();
+
 		if (hero.buff(MindVision.class) != null || hero.buff(DivineSense.DivineSenseTracker.class) != null){
 			for (Mob m : level.mobs.toArray(new Mob[0])){
 				if (m instanceof Mimic && m.alignment == Char.Alignment.NEUTRAL && ((Mimic) m).stealthy()){
@@ -1269,6 +1286,76 @@ public class Dungeon {
 		}
 
 		GameScene.afterObserve();
+	}
+
+	private static void recordVisibleCustomTileLandmarks() {
+		if (level == null || level.customTiles == null || level.heroFOV == null) {
+			return;
+		}
+
+		for (CustomTilemap tile : level.customTiles) {
+			Notes.Landmark landmark = tile.landmark();
+			if (landmark == null || Notes.contains(landmark)) {
+				continue;
+			}
+
+			int visibleCell = visibleCustomTileCell(tile);
+			if (visibleCell != -1) {
+				Notes.add(landmark);
+				clearLandmarkTracker(landmark);
+				webParityLog("custom tile landmark observed depth=" + depth
+						+ " branch=" + branch
+						+ " landmark=" + landmark
+						+ " tile=" + tile.getClass().getName()
+						+ " rect=" + tile.tileX + "," + tile.tileY
+						+ "+" + tile.tileW + "x" + tile.tileH
+						+ " visibleCell=" + visibleCell);
+			}
+		}
+	}
+
+	private static int visibleCustomTileCell(CustomTilemap tile) {
+		for (int y = tile.tileY; y < tile.tileY + tile.tileH; y++) {
+			for (int x = tile.tileX; x < tile.tileX + tile.tileW; x++) {
+				if (x < 0 || y < 0 || x >= level.width() || y >= level.height()) {
+					continue;
+				}
+				int cell = x + y * level.width();
+				if (level.heroFOV[cell]) {
+					return cell;
+				}
+			}
+		}
+		return -1;
+	}
+
+	private static void clearLandmarkTracker(Notes.Landmark landmark) {
+		if (landmark == Notes.Landmark.DISTANT_WELL) {
+			Blob tracker = level.blobs.get(WeakFloorRoom.WellID.class);
+			if (tracker != null) {
+				tracker.fullyClear();
+			}
+		}
+	}
+
+	private static void recordVisibleTerrainLandmarks() {
+		if (!(level instanceof RegularLevel) || level.map == null || level.heroFOV == null) {
+			return;
+		}
+
+		for (int cell = 0; cell < level.length(); cell++) {
+			if (level.heroFOV[cell] && level.map[cell] == Terrain.EMPTY_WELL
+					&& !Notes.contains(Notes.Landmark.DISTANT_WELL)
+					&& ((RegularLevel)level).room(cell) instanceof PitRoom) {
+				Notes.add(Notes.Landmark.DISTANT_WELL);
+				webParityLog("pit room landmark observed depth=" + depth
+						+ " branch=" + branch
+						+ " landmark=" + Notes.Landmark.DISTANT_WELL
+						+ " cell=" + cell
+						+ " room=" + ((RegularLevel)level).room(cell).getClass().getName());
+				return;
+			}
+		}
 	}
 
 	//we store this to avoid having to re-allocate the array with each pathfind

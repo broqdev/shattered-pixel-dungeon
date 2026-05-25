@@ -933,7 +933,8 @@ public abstract class RegularLevel extends Level {
 				+ " exit=" + exit()
 				+ " roomCount=" + rooms.size()
 				+ " specialRooms=" + specialRooms
-				+ " roomClasses=" + roomClasses;
+				+ " roomClasses=" + roomClasses
+				+ " " + blobDebugSummary();
 	}
 
 	private static void webParityLog(String message) {

@@ -53,6 +53,15 @@ public class InterlevelSceneDestinationCellTest {
 	}
 
 	@Test
+	public void missingDestinationTypeUsesDefaultForSourceTransition() {
+		TestLevel level = new TestLevel();
+		level.addTransition(6, LevelTransition.Type.REGULAR_ENTRANCE);
+		level.addTransition(18, LevelTransition.Type.REGULAR_EXIT);
+
+		assertEquals(18, InterlevelScene.destinationCell(level, sourceFrom(LevelTransition.Type.REGULAR_ENTRANCE)));
+	}
+
+	@Test
 	public void entranceFallbackRemainsAvailableWhenDestinationIsMissing() {
 		TestLevel level = new TestLevel();
 		level.addTransition(6, LevelTransition.Type.REGULAR_ENTRANCE);
@@ -63,6 +72,12 @@ public class InterlevelSceneDestinationCellTest {
 	private static LevelTransition sourceTo(LevelTransition.Type destType) {
 		LevelTransition transition = new LevelTransition();
 		transition.destType = destType;
+		return transition;
+	}
+
+	private static LevelTransition sourceFrom(LevelTransition.Type sourceType) {
+		LevelTransition transition = new LevelTransition();
+		transition.type = sourceType;
 		return transition;
 	}
 

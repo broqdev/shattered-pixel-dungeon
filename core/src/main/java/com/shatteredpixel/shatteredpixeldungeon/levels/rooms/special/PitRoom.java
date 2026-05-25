@@ -30,10 +30,15 @@ import com.shatteredpixel.shatteredpixeldungeon.items.keys.CrystalKey;
 import com.shatteredpixel.shatteredpixeldungeon.levels.Level;
 import com.shatteredpixel.shatteredpixeldungeon.levels.Terrain;
 import com.shatteredpixel.shatteredpixeldungeon.levels.painters.Painter;
+import com.watabou.utils.DeviceCompat;
 import com.watabou.utils.Point;
 import com.watabou.utils.Random;
 
+import java.util.logging.Logger;
+
 public class PitRoom extends SpecialRoom {
+
+	private static final Logger LOG = Logger.getLogger(PitRoom.class.getName());
 
 	@Override //increase min size slightly to prevent tiny 3x3 wraith fights
 	public int minWidth() { return 6; }
@@ -62,6 +67,12 @@ public class PitRoom extends SpecialRoom {
 			well = new Point( Random.Int( 2 ) == 0 ? left + 1 : right - 1, top+1 );
 		}
 		Painter.set( level, well, Terrain.EMPTY_WELL );
+		webParityLog("pitRoom paint depth=" + Dungeon.depth
+				+ " branch=" + Dungeon.branch
+				+ " room=" + left + "," + top + "-" + right + "," + bottom
+				+ " door=" + entrance.x + "," + entrance.y
+				+ " emptyWell=" + well.x + "," + well.y
+				+ " cell=" + level.pointToCell(well));
 		
 		int remains = level.pointToCell(center());
 		
@@ -113,5 +124,11 @@ public class PitRoom extends SpecialRoom {
 	@Override
 	public boolean canPlaceGrass(Point p) {
 		return false; //We want the player to be able to see the well through the door
+	}
+
+	private static void webParityLog(String message) {
+		if (DeviceCompat.webParityLoggingEnabled()) {
+			LOG.info("[WEB-PARITY] " + message);
+		}
 	}
 }

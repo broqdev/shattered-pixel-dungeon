@@ -313,6 +313,10 @@ public abstract class Level implements Bundlable {
 		
 		buildFlagMaps();
 		cleanWalls();
+		webParityLog("level create complete depth=" + Dungeon.depth
+				+ " branch=" + Dungeon.branch
+				+ " level=" + getClass().getName()
+				+ " " + blobDebugSummary());
 		
 		createMobs();
 		createItems();
@@ -456,6 +460,10 @@ public abstract class Level implements Bundlable {
 
 		buildFlagMaps();
 		cleanWalls();
+		webParityLog("level restore complete depth=" + Dungeon.depth
+				+ " branch=" + Dungeon.branch
+				+ " level=" + getClass().getName()
+				+ " " + blobDebugSummary());
 
 	}
 	
@@ -479,6 +487,10 @@ public abstract class Level implements Bundlable {
 		bundle.put( FEELING, feeling );
 		bundle.put( "mobs_to_spawn", mobsToSpawn.toArray(new Class[0]));
 		bundle.put( "respawner", respawner );
+		webParityLog("level store depth=" + Dungeon.depth
+				+ " branch=" + Dungeon.branch
+				+ " level=" + getClass().getName()
+				+ " " + blobDebugSummary());
 	}
 	
 	public int tunnelTile() {
@@ -532,11 +544,183 @@ public abstract class Level implements Bundlable {
 	}
 
 	public int exit(){
-		LevelTransition l = getTransition(LevelTransition.Type.REGULAR_EXIT);
-		if (l != null){
-			return l.cell();
+		int cell = transitionCell(LevelTransition.Type.REGULAR_EXIT);
+		if (cell != -1){
+			return cell;
+		}
+		LevelTransition fallback = getTransition(LevelTransition.Type.REGULAR_EXIT);
+		if (fallback != null){
+			return fallback.cell();
 		}
 		return 0;
+	}
+
+	public String transitionDebugSummary() {
+		if (transitions == null) {
+			return "transitions=null";
+		}
+		StringBuilder summary = new StringBuilder();
+		summary.append("transitions=").append(transitions.size()).append('[');
+		for (int i = 0; i < transitions.size(); i++) {
+			if (i > 0) {
+				summary.append(',');
+			}
+			appendTransitionDebug(summary, transitions.get(i));
+		}
+		summary.append(']');
+		return summary.toString();
+	}
+
+	public String transitionTerrainDebugSummary() {
+		if (map == null) {
+			return "transitionTerrain=mapNull";
+		}
+		StringBuilder entrances = new StringBuilder();
+		StringBuilder exits = new StringBuilder();
+		int entranceCount = 0;
+		int exitCount = 0;
+		for (int i = 0; i < map.length; i++) {
+			switch (map[i]) {
+				case Terrain.ENTRANCE:
+				case Terrain.ENTRANCE_SP:
+					if (entranceCount++ > 0) {
+						entrances.append(',');
+					}
+					entrances.append(i).append(':').append(terrainDebugName(map[i]));
+					break;
+				case Terrain.EXIT:
+				case Terrain.LOCKED_EXIT:
+				case Terrain.UNLOCKED_EXIT:
+					if (exitCount++ > 0) {
+						exits.append(',');
+					}
+					exits.append(i).append(':').append(terrainDebugName(map[i]));
+					break;
+			}
+		}
+		return "transitionTerrain=entrances(" + entranceCount + ")[" + entrances
+				+ "] exits(" + exitCount + ")[" + exits + "]";
+	}
+
+	public String cellDebugSummary(int cell) {
+		if (map == null) {
+			return "cell=" + cell + " mapNull";
+		}
+		if (cell < 0 || cell >= map.length) {
+			return "cell=" + cell + " outOfBounds length=" + map.length;
+		}
+		LevelTransition transition = transitionAtCellForDebug(cell);
+		StringBuilder summary = new StringBuilder();
+		summary.append("cell=").append(cell)
+				.append(" terrain=").append(terrainDebugName(map[cell])).append('(').append(map[cell]).append(')')
+				.append(" passable=").append(passable != null && passable[cell])
+				.append(" avoid=").append(avoid != null && avoid[cell])
+				.append(" solid=").append(solid != null && solid[cell])
+				.append(" transition=");
+		appendTransitionDebug(summary, transition);
+		return summary.toString();
+	}
+
+	public String blobDebugSummary() {
+		if (blobs == null) {
+			return "blobs=null";
+		}
+		StringBuilder summary = new StringBuilder();
+		summary.append("blobs=").append(blobs.size()).append('[');
+		int i = 0;
+		for (Blob blob : blobs.values()) {
+			if (i++ > 0) {
+				summary.append(',');
+			}
+			appendBlobDebug(summary, blob);
+		}
+		summary.append(']');
+		return summary.toString();
+	}
+
+	private LevelTransition transitionAtCellForDebug(int cell) {
+		if (transitions == null) {
+			return null;
+		}
+		Point point = cellToPoint(cell);
+		for (LevelTransition transition : transitions) {
+			if (transition != null && transition.inside(point)) {
+				return transition;
+			}
+		}
+		return null;
+	}
+
+	private static void appendTransitionDebug(StringBuilder summary, LevelTransition transition) {
+		if (transition == null) {
+			summary.append("none");
+		} else {
+			summary.append(transition.type)
+					.append('@').append(transition.cell())
+					.append("->").append(transition.destDepth)
+					.append('/').append(transition.destBranch)
+					.append('/').append(transition.destType);
+		}
+	}
+
+	private static String terrainDebugName(int terrain) {
+		switch (terrain) {
+			case Terrain.ENTRANCE:
+				return "ENTRANCE";
+			case Terrain.ENTRANCE_SP:
+				return "ENTRANCE_SP";
+			case Terrain.EXIT:
+				return "EXIT";
+			case Terrain.LOCKED_EXIT:
+				return "LOCKED_EXIT";
+			case Terrain.UNLOCKED_EXIT:
+				return "UNLOCKED_EXIT";
+			default:
+				return Integer.toString(terrain);
+		}
+	}
+
+	private static void appendBlobDebug(StringBuilder summary, Blob blob) {
+		if (blob == null) {
+			summary.append("none");
+			return;
+		}
+		summary.append(blob.getClass().getName())
+				.append("{volume=").append(blob.volume)
+				.append(" area=").append(blob.area.left).append(',').append(blob.area.top)
+				.append('-').append(blob.area.right).append(',').append(blob.area.bottom)
+				.append(' ')
+				.append(blobCellSample(blob))
+				.append('}');
+	}
+
+	private static String blobCellSample(Blob blob) {
+		if (blob.cur == null) {
+			return "cur=null";
+		}
+		StringBuilder sample = new StringBuilder();
+		int active = 0;
+		for (int i = 0; i < blob.cur.length; i++) {
+			if (blob.cur[i] > 0) {
+				if (active < 12) {
+					if (sample.length() > 0) {
+						sample.append(',');
+					}
+					sample.append(i).append(':').append(blob.cur[i]);
+				}
+				active++;
+			}
+		}
+		if (active > 12) {
+			sample.append(",...");
+		}
+		return "activeCells=" + active + " sample=[" + sample + "]";
+	}
+
+	private static void webParityLog(String message) {
+		if (DeviceCompat.webParityLoggingEnabled()) {
+			LOG.info("[WEB-PARITY] " + message);
+		}
 	}
 
 	public LevelTransition getTransition(LevelTransition.Type type){
@@ -555,6 +739,52 @@ public abstract class Level implements Bundlable {
 			}
 		}
 		return type != null ? getTransition(null) : transitions.get(0);
+	}
+
+	public LevelTransition getTransitionExact(LevelTransition.Type type) {
+		if (type == null || transitions.isEmpty()) {
+			return null;
+		}
+		for (LevelTransition transition : transitions) {
+			if (transition.type == type) {
+				return transition;
+			}
+		}
+		return null;
+	}
+
+	public int transitionCell(LevelTransition.Type type) {
+		LevelTransition transition = getTransitionExact(type);
+		if (transition != null) {
+			return transition.cell();
+		}
+		return terrainTransitionCell(type);
+	}
+
+	public int terrainTransitionCell(LevelTransition.Type type) {
+		if (type == null || map == null) {
+			return -1;
+		}
+		for (int i = 0; i < length(); i++) {
+			switch (map[i]) {
+				case Terrain.ENTRANCE:
+				case Terrain.ENTRANCE_SP:
+					if (type == LevelTransition.Type.REGULAR_ENTRANCE
+							|| type == LevelTransition.Type.BRANCH_ENTRANCE) {
+						return i;
+					}
+					break;
+				case Terrain.EXIT:
+				case Terrain.LOCKED_EXIT:
+				case Terrain.UNLOCKED_EXIT:
+					if (type == LevelTransition.Type.REGULAR_EXIT
+							|| type == LevelTransition.Type.BRANCH_EXIT) {
+						return i;
+					}
+					break;
+			}
+		}
+		return -1;
 	}
 
 	public LevelTransition getTransition(int cell){

@@ -38,6 +38,7 @@
                 max-height: calc(100dvh - 48px);
                 max-width: calc(100vw - 48px);
                 overflow: hidden;
+                position: relative;
                 width: min(
                     calc(100vw - 48px),
                     calc((100dvh - 48px) * var(--game-width) / var(--game-height))
@@ -79,10 +80,12 @@
         <script>
             const DEFAULT_GAME_WIDTH = 800;
             const DEFAULT_GAME_HEIGHT = 600;
+            let gameStarted = false;
+            let pagehideDispatched = false;
+            /* WEB_PARITY_LOGGING_BEGIN */
             const WEB_PARITY_LOGGING_ENABLED = "%WEB_PARITY_LOGGING%" === "true";
             const WEB_PARITY_LOG_KEY = "shpd.webParityLogBuffer";
             const WEB_PARITY_LOG_LIMIT = 300;
-            let pagehideDispatched = false;
             window.__shpdWebParityLogging = WEB_PARITY_LOGGING_ENABLED;
 
             function webParityStorage() {
@@ -175,6 +178,14 @@
             replayPreviousWebParityLogs();
             installWebParityConsoleBuffer();
 
+            function logWebParity(message, data) {
+                if (!WEB_PARITY_LOGGING_ENABLED) {
+                    return;
+                }
+                console.info("[WEB-PARITY] " + message, data || "");
+            }
+            /* WEB_PARITY_LOGGING_END */
+
             function focusGameCanvas() {
                 const canvas = document.getElementById("canvas");
                 if (canvas && document.activeElement !== canvas) {
@@ -183,12 +194,567 @@
                 }
             }
 
-            function logWebParity(message, data) {
-                if (!WEB_PARITY_LOGGING_ENABLED) {
+            function focusActiveGameSurface() {
+                focusGameCanvas();
+            }
+
+            function applyDirectStartHowlerPolicy(howler) {
+                if (!howler || howler.__shpdDirectStartAudioPolicy) {
+                    return howler;
+                }
+
+                try {
+                    howler.__shpdDirectStartAudioPolicy = true;
+                    howler.usingWebAudio = false;
+                    howler.autoUnlock = false;
+                    howler.autoSuspend = false;
+                    logWebParity("audio direct start html5 fallback", {
+                        usingWebAudio: howler.usingWebAudio,
+                        autoUnlock: howler.autoUnlock,
+                        autoSuspend: howler.autoSuspend
+                    });
+                } catch (error) {
+                    logWebParity("audio direct start policy failed", {
+                        error: error && (error.message || error.name || String(error))
+                    });
+                }
+                return howler;
+            }
+
+            function installDirectStartHowlerPolicy() {
+                if (window.__shpdHowlerDirectStartPolicyInstalled) {
                     return;
                 }
-                console.info("[WEB-PARITY] " + message, data || "");
+
+                window.__shpdHowlerDirectStartPolicyInstalled = true;
+                let currentHowler = window.Howler;
+                try {
+                    Object.defineProperty(window, "Howler", {
+                        configurable: true,
+                        get: function() {
+                            return currentHowler;
+                        },
+                        set: function(value) {
+                            currentHowler = applyDirectStartHowlerPolicy(value);
+                        }
+                    });
+                    if (currentHowler) {
+                        currentHowler = applyDirectStartHowlerPolicy(currentHowler);
+                    }
+                } catch (error) {
+                    if (window.Howler) {
+                        applyDirectStartHowlerPolicy(window.Howler);
+                    } else {
+                        logWebParity("audio direct start policy install failed", {
+                            error: error && (error.message || error.name || String(error))
+                        });
+                    }
+                }
             }
+
+            installDirectStartHowlerPolicy();
+
+            const BROWSER_DATA_BACKUP_FORMAT = "shattered-pixel-dungeon-web-browser-data";
+            const BROWSER_DATA_BACKUP_FORMAT_VERSION = 1;
+            const BROWSER_DATA_LOCAL_STORAGE_PREFIX = "pref:app:";
+            const BROWSER_DATA_INDEXED_DB_NAME = "db/assets";
+            const BROWSER_DATA_INDEXED_DB_STORE = "FILE_DATA";
+
+            function browserDataBackupAvailable() {
+                try {
+                    return typeof window.indexedDB !== "undefined"
+                            && !!window.localStorage
+                            && typeof Blob !== "undefined"
+                            && typeof URL !== "undefined"
+                            && typeof document !== "undefined"
+                            && typeof FileReader !== "undefined";
+                } catch (error) {
+                    return false;
+                }
+            }
+
+            function browserDataBackupErrorMessage(error) {
+                if (!error) {
+                    return "Unknown error";
+                }
+                if (typeof error === "string") {
+                    return error;
+                }
+                return error.message || error.name || String(error);
+            }
+
+            function browserDataBackupByteLength(text) {
+                if (typeof TextEncoder !== "undefined") {
+                    return new TextEncoder().encode(text).length;
+                }
+                return new Blob([text]).size;
+            }
+
+            function collectBrowserDataLocalStorage() {
+                const storage = window.localStorage;
+                const entries = [];
+                for (let i = 0; i < storage.length; i++) {
+                    const key = storage.key(i);
+                    if (key && key.startsWith(BROWSER_DATA_LOCAL_STORAGE_PREFIX)) {
+                        entries.push({ key, value: storage.getItem(key) || "" });
+                    }
+                }
+                entries.sort((left, right) => left.key.localeCompare(right.key));
+                return entries;
+            }
+
+            function replaceBrowserDataLocalStorage(entries) {
+                const storage = window.localStorage;
+                const oldKeys = [];
+                for (let i = 0; i < storage.length; i++) {
+                    const key = storage.key(i);
+                    if (key && key.startsWith(BROWSER_DATA_LOCAL_STORAGE_PREFIX)) {
+                        oldKeys.push(key);
+                    }
+                }
+                oldKeys.forEach((key) => storage.removeItem(key));
+                entries.forEach((entry) => storage.setItem(entry.key, entry.value));
+            }
+
+            function bytesToBase64(value) {
+                if (!value) {
+                    return "";
+                }
+                const bytes = ArrayBuffer.isView(value)
+                        ? new Uint8Array(value.buffer, value.byteOffset, value.byteLength)
+                        : new Uint8Array(value);
+                let binary = "";
+                const chunkSize = 0x8000;
+                for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+                    const chunk = bytes.subarray(offset, offset + chunkSize);
+                    binary += String.fromCharCode.apply(null, chunk);
+                }
+                return btoa(binary);
+            }
+
+            function base64ToInt8Array(value) {
+                if (typeof value !== "string") {
+                    throw new Error("IndexedDB file contents must be base64 text");
+                }
+                const binary = atob(value);
+                const bytes = new Uint8Array(binary.length);
+                for (let i = 0; i < binary.length; i++) {
+                    bytes[i] = binary.charCodeAt(i);
+                }
+                return new Int8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+            }
+
+            function openBrowserDataDatabase() {
+                return new Promise((resolve, reject) => {
+                    const request = window.indexedDB.open(BROWSER_DATA_INDEXED_DB_NAME, 1);
+                    request.onupgradeneeded = () => {
+                        const db = request.result;
+                        if (!db.objectStoreNames.contains(BROWSER_DATA_INDEXED_DB_STORE)) {
+                            db.createObjectStore(BROWSER_DATA_INDEXED_DB_STORE);
+                        }
+                    };
+                    request.onsuccess = () => resolve(request.result);
+                    request.onerror = () => reject(request.error || new Error("Unable to open IndexedDB"));
+                    request.onblocked = () => reject(new Error("IndexedDB open was blocked"));
+                });
+            }
+
+            function serializeBrowserDataRecord(key, value) {
+                const type = value && typeof value.type === "number" ? value.type : 2;
+                const date = value && value.date instanceof Date ? value.date.toISOString() : null;
+                const contents = value && value.contents ? bytesToBase64(value.contents) : "";
+                return { key: String(key), type, date, contents };
+            }
+
+            async function readBrowserDataIndexedDbRecords() {
+                const db = await openBrowserDataDatabase();
+                return new Promise((resolve, reject) => {
+                    if (!db.objectStoreNames.contains(BROWSER_DATA_INDEXED_DB_STORE)) {
+                        db.close();
+                        resolve([]);
+                        return;
+                    }
+
+                    let settled = false;
+                    const records = [];
+                    const fail = (error) => {
+                        if (settled) {
+                            return;
+                        }
+                        settled = true;
+                        try {
+                            db.close();
+                        } catch (ignored) {
+                            // Closing is best-effort during error handling.
+                        }
+                        reject(error);
+                    };
+
+                    const transaction = db.transaction(BROWSER_DATA_INDEXED_DB_STORE, "readonly");
+                    const store = transaction.objectStore(BROWSER_DATA_INDEXED_DB_STORE);
+                    const request = store.openCursor();
+
+                    request.onsuccess = () => {
+                        const cursor = request.result;
+                        if (cursor) {
+                            records.push(serializeBrowserDataRecord(cursor.key, cursor.value));
+                            cursor.continue();
+                        }
+                    };
+                    request.onerror = () => fail(request.error || new Error("Unable to read IndexedDB cursor"));
+                    transaction.oncomplete = () => {
+                        if (settled) {
+                            return;
+                        }
+                        settled = true;
+                        db.close();
+                        records.sort((left, right) => left.key.localeCompare(right.key));
+                        resolve(records);
+                    };
+                    transaction.onerror = () => fail(transaction.error || new Error("Unable to read IndexedDB"));
+                    transaction.onabort = () => fail(transaction.error || new Error("IndexedDB read aborted"));
+                });
+            }
+
+            async function replaceBrowserDataIndexedDbRecords(records) {
+                const db = await openBrowserDataDatabase();
+                return new Promise((resolve, reject) => {
+                    let settled = false;
+                    const fail = (error) => {
+                        if (settled) {
+                            return;
+                        }
+                        settled = true;
+                        try {
+                            db.close();
+                        } catch (ignored) {
+                            // Closing is best-effort during error handling.
+                        }
+                        reject(error);
+                    };
+
+                    const transaction = db.transaction(BROWSER_DATA_INDEXED_DB_STORE, "readwrite");
+                    const store = transaction.objectStore(BROWSER_DATA_INDEXED_DB_STORE);
+                    const clearRequest = store.clear();
+
+                    clearRequest.onsuccess = () => {
+                        records.forEach((record) => {
+                            const value = { type: record.type, date: record.date };
+                            if (record.type === 2) {
+                                value.contents = record.contents;
+                            }
+                            store.put(value, record.key);
+                        });
+                    };
+                    clearRequest.onerror = () => fail(clearRequest.error || new Error("Unable to clear IndexedDB"));
+                    transaction.oncomplete = () => {
+                        if (settled) {
+                            return;
+                        }
+                        settled = true;
+                        db.close();
+                        resolve();
+                    };
+                    transaction.onerror = () => fail(transaction.error || new Error("Unable to write IndexedDB"));
+                    transaction.onabort = () => fail(transaction.error || new Error("IndexedDB write aborted"));
+                });
+            }
+
+            function validateBrowserDataLocalStorage(entries) {
+                if (!Array.isArray(entries)) {
+                    throw new Error("Browser Data Backup localStorage must be an array");
+                }
+                const seen = new Set();
+                return entries.map((entry) => {
+                    if (!entry || typeof entry.key !== "string" || typeof entry.value !== "string") {
+                        throw new Error("Browser Data Backup localStorage entries need string keys and values");
+                    }
+                    if (!entry.key.startsWith(BROWSER_DATA_LOCAL_STORAGE_PREFIX)) {
+                        throw new Error("Browser Data Backup contains a non-app localStorage key");
+                    }
+                    if (seen.has(entry.key)) {
+                        throw new Error("Browser Data Backup contains a duplicate localStorage key");
+                    }
+                    seen.add(entry.key);
+                    return { key: entry.key, value: entry.value };
+                });
+            }
+
+            function validateBrowserDataIndexedDb(records) {
+                if (!Array.isArray(records)) {
+                    throw new Error("Browser Data Backup indexedDb must be an array");
+                }
+                const seen = new Set();
+                return records.map((record) => {
+                    if (!record || typeof record.key !== "string") {
+                        throw new Error("Browser Data Backup IndexedDB records need string keys");
+                    }
+                    if (seen.has(record.key)) {
+                        throw new Error("Browser Data Backup contains a duplicate IndexedDB key");
+                    }
+                    seen.add(record.key);
+
+                    const type = Number(record.type);
+                    if (type !== 1 && type !== 2) {
+                        throw new Error("Browser Data Backup IndexedDB record has an unknown type");
+                    }
+
+                    const date = typeof record.date === "string" && !Number.isNaN(Date.parse(record.date))
+                            ? new Date(record.date)
+                            : new Date();
+                    return {
+                        key: record.key,
+                        type,
+                        date,
+                        contents: type === 2 ? base64ToInt8Array(record.contents || "") : null
+                    };
+                });
+            }
+
+            function validateBrowserDataPayload(payload) {
+                if (!payload || typeof payload !== "object") {
+                    throw new Error("Browser Data Backup must be a JSON object");
+                }
+                if (payload.format !== BROWSER_DATA_BACKUP_FORMAT) {
+                    throw new Error("This is not a Shattered Pixel Dungeon Browser Data Backup");
+                }
+                if (payload.formatVersion !== BROWSER_DATA_BACKUP_FORMAT_VERSION) {
+                    throw new Error("Unsupported Browser Data Backup format version");
+                }
+                return {
+                    localStorage: validateBrowserDataLocalStorage(payload.localStorage),
+                    indexedDb: validateBrowserDataIndexedDb(payload.indexedDb)
+                };
+            }
+
+            function completeBrowserDataBackup(completion, result) {
+                try {
+                    completion(
+                        !!result.success,
+                        result.message || "",
+                        result.localStorageKeys || 0,
+                        result.indexedDbRecords || 0,
+                        result.bytes || 0
+                    );
+                } catch (error) {
+                    logWebParity("browser data callback failure", { error: browserDataBackupErrorMessage(error) });
+                }
+            }
+
+            function downloadBrowserDataBackup(text, exportedAt) {
+                const blob = new Blob([text], { type: "application/json;charset=utf-8" });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.href = url;
+                link.download = "shattered-pixel-dungeon-browser-data-"
+                        + exportedAt.replace(/[:.]/g, "-") + ".json";
+                link.style.display = "none";
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                window.setTimeout(() => URL.revokeObjectURL(url), 0);
+                return blob.size;
+            }
+
+            async function exportBrowserDataBackup(gameVersion, completion) {
+                logWebParity("browser data export begin", { formatVersion: BROWSER_DATA_BACKUP_FORMAT_VERSION });
+                try {
+                    if (!browserDataBackupAvailable()) {
+                        throw new Error("Browser Data Backup is not available in this browser");
+                    }
+                    const localStorageEntries = collectBrowserDataLocalStorage();
+                    const indexedDbRecords = await readBrowserDataIndexedDbRecords();
+                    const exportedAt = new Date().toISOString();
+                    const payload = {
+                        format: BROWSER_DATA_BACKUP_FORMAT,
+                        formatVersion: BROWSER_DATA_BACKUP_FORMAT_VERSION,
+                        exportedAt,
+                        gameVersion: gameVersion || "",
+                        localStorage: localStorageEntries,
+                        indexedDb: indexedDbRecords
+                    };
+                    const text = JSON.stringify(payload, null, 2);
+                    const bytes = downloadBrowserDataBackup(text, exportedAt);
+                    const result = {
+                        success: true,
+                        message: "Exported Browser Data Backup.",
+                        localStorageKeys: localStorageEntries.length,
+                        indexedDbRecords: indexedDbRecords.length,
+                        bytes
+                    };
+                    logWebParity("browser data export success", {
+                        localStorageKeys: result.localStorageKeys,
+                        indexedDbRecords: result.indexedDbRecords,
+                        bytes: result.bytes,
+                        version: payload.gameVersion,
+                        formatVersion: payload.formatVersion
+                    });
+                    completeBrowserDataBackup(completion, result);
+                } catch (error) {
+                    const message = browserDataBackupErrorMessage(error);
+                    logWebParity("browser data export failure", { error: message });
+                    completeBrowserDataBackup(completion, {
+                        success: false,
+                        message,
+                        localStorageKeys: 0,
+                        indexedDbRecords: 0,
+                        bytes: 0
+                    });
+                }
+            }
+
+            function pickBrowserDataBackupFile() {
+                return new Promise((resolve) => {
+                    const input = document.createElement("input");
+                    input.type = "file";
+                    input.accept = "application/json,.json";
+                    input.style.display = "none";
+                    let settled = false;
+
+                    const cleanup = () => {
+                        input.remove();
+                        window.removeEventListener("focus", onFocus, true);
+                    };
+                    const settle = (file) => {
+                        if (settled) {
+                            return;
+                        }
+                        settled = true;
+                        cleanup();
+                        resolve(file || null);
+                    };
+                    const onFocus = () => {
+                        window.setTimeout(() => {
+                            if (!input.files || input.files.length === 0) {
+                                settle(null);
+                            }
+                        }, 250);
+                    };
+
+                    input.addEventListener("change", () => settle(input.files && input.files[0]));
+                    window.addEventListener("focus", onFocus, true);
+                    document.body.appendChild(input);
+                    input.click();
+                });
+            }
+
+            function readBrowserDataBackupFile(file) {
+                if (typeof file.text === "function") {
+                    return file.text();
+                }
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(String(reader.result || ""));
+                    reader.onerror = () => reject(reader.error || new Error("Unable to read backup file"));
+                    reader.readAsText(file);
+                });
+            }
+
+            async function importBrowserDataBackup(completion) {
+                let phase = "select";
+                let localStorageSnapshot = null;
+                let indexedDbSnapshot = null;
+                let indexedDbReplaced = false;
+                try {
+                    if (!browserDataBackupAvailable()) {
+                        throw new Error("Browser Data Backup is not available in this browser");
+                    }
+
+                    const file = await pickBrowserDataBackupFile();
+                    if (!file) {
+                        logWebParity("browser data import failure", { phase, error: "selection canceled" });
+                        completeBrowserDataBackup(completion, {
+                            success: false,
+                            message: "Browser Data Backup import canceled.",
+                            localStorageKeys: 0,
+                            indexedDbRecords: 0,
+                            bytes: 0
+                        });
+                        return;
+                    }
+                    logWebParity("browser data import selected", { name: file.name, bytes: file.size || 0 });
+
+                    phase = "validate";
+                    const text = await readBrowserDataBackupFile(file);
+                    const payload = validateBrowserDataPayload(JSON.parse(text));
+                    const bytes = browserDataBackupByteLength(text);
+                    logWebParity("browser data import validated", {
+                        localStorageKeys: payload.localStorage.length,
+                        indexedDbRecords: payload.indexedDb.length,
+                        bytes,
+                        formatVersion: BROWSER_DATA_BACKUP_FORMAT_VERSION
+                    });
+
+                    phase = "snapshot";
+                    localStorageSnapshot = collectBrowserDataLocalStorage();
+                    indexedDbSnapshot = await readBrowserDataIndexedDbRecords();
+
+                    phase = "write-local-storage";
+                    logWebParity("browser data import confirmed", {
+                        localStorageKeys: payload.localStorage.length,
+                        indexedDbRecords: payload.indexedDb.length,
+                        bytes
+                    });
+                    replaceBrowserDataLocalStorage(payload.localStorage);
+
+                    phase = "write-indexed-db";
+                    await replaceBrowserDataIndexedDbRecords(payload.indexedDb);
+                    indexedDbReplaced = true;
+
+                    logWebParity("browser data import write-complete", {
+                        localStorageKeys: payload.localStorage.length,
+                        indexedDbRecords: payload.indexedDb.length,
+                        bytes
+                    });
+                    completeBrowserDataBackup(completion, {
+                        success: true,
+                        message: "Imported Browser Data Backup. Reloading...",
+                        localStorageKeys: payload.localStorage.length,
+                        indexedDbRecords: payload.indexedDb.length,
+                        bytes
+                    });
+                    logWebParity("browser data import reload", {
+                        localStorageKeys: payload.localStorage.length,
+                        indexedDbRecords: payload.indexedDb.length,
+                        bytes
+                    });
+                    window.setTimeout(() => window.location.reload(), 250);
+                } catch (error) {
+                    const message = browserDataBackupErrorMessage(error);
+                    logWebParity("browser data import failure", { phase, error: message });
+                    if (localStorageSnapshot) {
+                        try {
+                            replaceBrowserDataLocalStorage(localStorageSnapshot);
+                        } catch (restoreError) {
+                            logWebParity("browser data import localStorage restore failure", {
+                                error: browserDataBackupErrorMessage(restoreError)
+                            });
+                        }
+                    }
+                    if (indexedDbReplaced && indexedDbSnapshot) {
+                        try {
+                            await replaceBrowserDataIndexedDbRecords(indexedDbSnapshot);
+                        } catch (restoreError) {
+                            logWebParity("browser data import IndexedDB restore failure", {
+                                error: browserDataBackupErrorMessage(restoreError)
+                            });
+                        }
+                    }
+                    completeBrowserDataBackup(completion, {
+                        success: false,
+                        message,
+                        localStorageKeys: 0,
+                        indexedDbRecords: 0,
+                        bytes: 0
+                    });
+                }
+            }
+
+            window.__shpdBrowserDataBackup = {
+                available: browserDataBackupAvailable,
+                exportData: exportBrowserDataBackup,
+                importData: importBrowserDataBackup
+            };
 
             function syncGameContainerRatio() {
                 const canvas = document.getElementById("canvas");
@@ -202,6 +768,46 @@
                 if (width > 0 && height > 0) {
                     container.style.setProperty("--game-width", width);
                     container.style.setProperty("--game-height", height);
+                }
+            }
+
+            function canvasPageLeft(canvas) {
+                const rect = canvas.getBoundingClientRect();
+                return Math.round(rect.left + (window.scrollX || window.pageXOffset || 0));
+            }
+
+            function canvasPageTop(canvas) {
+                const rect = canvas.getBoundingClientRect();
+                return Math.round(rect.top + (window.scrollY || window.pageYOffset || 0));
+            }
+
+            function installCanvasInputOffsetShim() {
+                const canvas = document.getElementById("canvas");
+                if (!canvas || canvas.__shpdInputOffsetShimInstalled) {
+                    return;
+                }
+
+                try {
+                    Object.defineProperties(canvas, {
+                        offsetLeft: {
+                            configurable: true,
+                            get: function() {
+                                return canvasPageLeft(this);
+                            }
+                        },
+                        offsetTop: {
+                            configurable: true,
+                            get: function() {
+                                return canvasPageTop(this);
+                            }
+                        }
+                    });
+                    canvas.__shpdInputOffsetShimInstalled = true;
+                    logWebParity("canvas input offset shim installed", canvasInputGeometry(canvas));
+                } catch (error) {
+                    logWebParity("canvas input offset shim failed", {
+                        error: error && (error.message || error.name || String(error))
+                    });
                 }
             }
 
@@ -231,19 +837,81 @@
                 event.preventDefault();
             }
 
-            async function start() {
+            function pointerClientPosition(event) {
+                const touch = event.changedTouches && event.changedTouches.length > 0
+                        ? event.changedTouches[0]
+                        : event;
+                if (!touch || typeof touch.clientX !== "number" || typeof touch.clientY !== "number") {
+                    return null;
+                }
+                return {
+                    x: touch.clientX,
+                    y: touch.clientY
+                };
+            }
+
+            function canvasInputGeometry(canvas, event) {
+                if (!canvas) {
+                    return {};
+                }
+
+                const rect = canvas.getBoundingClientRect();
+                const position = event ? pointerClientPosition(event) : null;
+                const clientWidth = canvas.clientWidth || rect.width || 1;
+                const clientHeight = canvas.clientHeight || rect.height || 1;
+                const data = {
+                    canvasWidth: canvas.width,
+                    canvasHeight: canvas.height,
+                    clientWidth: canvas.clientWidth,
+                    clientHeight: canvas.clientHeight,
+                    rectLeft: Math.round(rect.left),
+                    rectTop: Math.round(rect.top),
+                    offsetLeft: canvas.offsetLeft,
+                    offsetTop: canvas.offsetTop,
+                    offsetParent: canvas.offsetParent && (canvas.offsetParent.id || canvas.offsetParent.tagName)
+                };
+                if (position) {
+                    const scrollX = window.scrollX || window.pageXOffset || 0;
+                    const scrollY = window.scrollY || window.pageYOffset || 0;
+                    data.clientX = Math.round(position.x);
+                    data.clientY = Math.round(position.y);
+                    data.gameXByOffset = Math.round((position.x - canvas.offsetLeft + scrollX) * canvas.width / clientWidth);
+                    data.gameYByOffset = Math.round((position.y - canvas.offsetTop + scrollY) * canvas.height / clientHeight);
+                    data.gameXByRect = Math.round((position.x - rect.left) * canvas.width / clientWidth);
+                    data.gameYByRect = Math.round((position.y - rect.top) * canvas.height / clientHeight);
+                }
+                return data;
+            }
+
+            function logCanvasInputEvent(event) {
+                const canvas = document.getElementById("canvas");
+                const targetId = event.target && event.target.id;
+                const data = canvasInputGeometry(canvas, event);
+                data.target = targetId || event.target && event.target.tagName;
+                logWebParity("browser input " + event.type, data);
+            }
+
+            function start() {
+                if (gameStarted) {
+                    return;
+                }
+
+                gameStarted = true;
                 syncGameContainerRatio();
+                installCanvasInputOffsetShim();
                 observeGameResolution();
+                logWebParity("game start load", {});
                 focusGameCanvas();
                 %MODE%
                 requestAnimationFrame(() => {
                     syncGameContainerRatio();
+                    logWebParity("canvas input geometry after start", canvasInputGeometry(document.getElementById("canvas")));
                     focusGameCanvas();
                 });
             }
 
             window.addEventListener("load", start);
-            window.addEventListener("focus", focusGameCanvas);
+            window.addEventListener("focus", focusActiveGameSurface);
             window.addEventListener("pageshow", () => {
                 pagehideDispatched = false;
             }, { capture: true });
@@ -267,9 +935,13 @@
             }, { capture: true });
             window.addEventListener("keydown", preventPageKeyHandling, { capture: true });
             window.addEventListener("keyup", preventPageKeyHandling, { capture: true });
-            document.addEventListener("pointerdown", (event) => {
-                logWebParity("pointerdown", { target: event.target && event.target.id });
-                focusGameCanvas();
+            ["pointerdown", "mousedown", "mouseup", "click", "touchstart", "touchend"].forEach((eventName) => {
+                document.addEventListener(eventName, logCanvasInputEvent, { capture: true });
+            });
+            document.addEventListener("pointerdown", () => {
+                if (gameStarted) {
+                    focusGameCanvas();
+                }
             }, { capture: true });
         </script>
         %JS_SCRIPT%

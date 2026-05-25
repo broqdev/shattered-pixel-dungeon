@@ -31,10 +31,15 @@ import com.shatteredpixel.shatteredpixeldungeon.levels.painters.Painter;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
 import com.shatteredpixel.shatteredpixeldungeon.tiles.CustomTilemap;
 import com.watabou.noosa.Tilemap;
+import com.watabou.utils.DeviceCompat;
 import com.watabou.utils.Point;
 import com.watabou.utils.Random;
 
+import java.util.logging.Logger;
+
 public class WeakFloorRoom extends SpecialRoom {
+
+	private static final Logger LOG = Logger.getLogger(WeakFloorRoom.class.getName());
 
 	public void paint( Level level ) {
 		
@@ -74,6 +79,14 @@ public class WeakFloorRoom extends SpecialRoom {
 		level.customTiles.add(vis);
 
 		Blob.seed( well.x + level.width() * well.y, 1, WellID.class, level );
+		webParityLog("weakFloor paint depth=" + Dungeon.depth
+				+ " branch=" + Dungeon.branch
+				+ " room=" + left + "," + top + "-" + right + "," + bottom
+				+ " door=" + door.x + "," + door.y
+				+ " distantWell=" + well.x + "," + well.y
+				+ " cell=" + (well.x + level.width() * well.y)
+				+ " customTiles=" + level.customTiles.size()
+				+ " " + level.blobDebugSummary());
 	}
 
 	public static class HiddenWell extends CustomTilemap {
@@ -98,6 +111,11 @@ public class WeakFloorRoom extends SpecialRoom {
 		@Override
 		public String desc(int tileX, int tileY) {
 			return Messages.get(this, "desc");
+		}
+
+		@Override
+		public Notes.Landmark landmark() {
+			return Notes.Landmark.DISTANT_WELL;
 		}
 
 	}
@@ -125,5 +143,11 @@ public class WeakFloorRoom extends SpecialRoom {
 			}
 		}
 
+	}
+
+	private static void webParityLog(String message) {
+		if (DeviceCompat.webParityLoggingEnabled()) {
+			LOG.info("[WEB-PARITY] " + message);
+		}
 	}
 }

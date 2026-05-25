@@ -43,11 +43,17 @@ import com.shatteredpixel.shatteredpixeldungeon.levels.rooms.Room;
 import com.shatteredpixel.shatteredpixeldungeon.levels.rooms.standard.EmptyRoom;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
+import com.watabou.utils.Bundle;
+import com.watabou.utils.DeviceCompat;
 import com.watabou.utils.PathFinder;
 import com.watabou.utils.Point;
 import com.watabou.utils.Random;
 
+import java.util.logging.Logger;
+
 public class MagicalFireRoom extends SpecialRoom {
+
+	private static final Logger LOG = Logger.getLogger(MagicalFireRoom.class.getName());
 
 	@Override
 	public int minWidth() { return 7; }
@@ -64,11 +70,16 @@ public class MagicalFireRoom extends SpecialRoom {
 
 		Point firePos = center();
 		Room behindFire = new EmptyRoom();
+		int fireCells = 0;
+		StringBuilder fireCellSummary = new StringBuilder();
 
 		if (door.x == left || door.x == right){
 			firePos.y = top+1;
 			while (firePos.y != bottom){
-				Blob.seed(level.pointToCell(firePos), 1, EternalFire.class, level);
+				int cell = level.pointToCell(firePos);
+				Blob.seed(cell, 1, EternalFire.class, level);
+				appendFireCell(fireCellSummary, cell);
+				fireCells++;
 				Painter.set(level, firePos, Terrain.EMPTY_SP);
 				firePos.y++;
 			}
@@ -80,7 +91,10 @@ public class MagicalFireRoom extends SpecialRoom {
 		} else {
 			firePos.x = left+1;
 			while (firePos.x != right){
-				Blob.seed(level.pointToCell(firePos), 1, EternalFire.class, level);
+				int cell = level.pointToCell(firePos);
+				Blob.seed(cell, 1, EternalFire.class, level);
+				appendFireCell(fireCellSummary, cell);
+				fireCells++;
 				Painter.set(level, firePos, Terrain.EMPTY_SP);
 				firePos.x++;
 			}
@@ -110,6 +124,13 @@ public class MagicalFireRoom extends SpecialRoom {
 		}
 
 		level.addItemToSpawn(new PotionOfFrost());
+		webParityLog("magicalFire paint depth=" + Dungeon.depth
+				+ " branch=" + Dungeon.branch
+				+ " room=" + roomSummary(this)
+				+ " door=" + door.x + ',' + door.y + '/' + door.type
+				+ " fireCells=" + fireCells + '[' + fireCellSummary + ']'
+				+ " behindFire=" + roomSummary(behindFire)
+				+ " " + level.blobDebugSummary());
 
 	}
 
@@ -155,8 +176,24 @@ public class MagicalFireRoom extends SpecialRoom {
 
 	public static class EternalFire extends Blob {
 
+		private boolean webParityFirstEvolveLogged;
+
 		@Override
 		protected void evolve() {
+			int beforeActive = activeCellCount(cur);
+			int beforeTotal = totalBlobValue(cur);
+			boolean logFirstEvolve = !webParityFirstEvolveLogged;
+			if (logFirstEvolve) {
+				webParityFirstEvolveLogged = true;
+				webParityLog("eternalFire evolve begin depth=" + Dungeon.depth
+						+ " branch=" + Dungeon.branch
+						+ " beforeActive=" + beforeActive
+						+ " beforeTotal=" + beforeTotal
+						+ " " + eternalFireSnapshot(this)
+						+ " related=" + relatedBlobSnapshot("freezing", Dungeon.level.blobs.get(Freezing.class))
+						+ " " + relatedBlobSnapshot("blizzard", Dungeon.level.blobs.get(Blizzard.class))
+						+ " " + relatedBlobSnapshot("fire", Dungeon.level.blobs.get(Fire.class)));
+			}
 
 			int cell;
 
@@ -233,19 +270,63 @@ public class MagicalFireRoom extends SpecialRoom {
 			}
 
 			if (clearAll){
+				webParityLog("eternalFire evolve clearAll depth=" + Dungeon.depth
+						+ " branch=" + Dungeon.branch
+						+ " beforeActive=" + beforeActive
+						+ " beforeTotal=" + beforeTotal
+						+ " afterVolume=" + volume
+						+ " " + eternalFireSnapshot(this));
 				fullyClear();
 			}
+			if (logFirstEvolve || clearAll || beforeTotal != volume) {
+				webParityLog("eternalFire evolve end depth=" + Dungeon.depth
+						+ " branch=" + Dungeon.branch
+						+ " clearAll=" + clearAll
+						+ " beforeActive=" + beforeActive
+						+ " beforeTotal=" + beforeTotal
+						+ " afterVolume=" + volume
+						+ " " + eternalFireSnapshot(this));
+			}
 
+		}
+
+		@Override
+		public void storeInBundle(Bundle bundle) {
+			super.storeInBundle(bundle);
+			webParityLog("eternalFire store depth=" + Dungeon.depth
+					+ " branch=" + Dungeon.branch
+					+ " " + eternalFireSnapshot(this));
+		}
+
+		@Override
+		public void restoreFromBundle(Bundle bundle) {
+			super.restoreFromBundle(bundle);
+			webParityLog("eternalFire restore depth=" + Dungeon.depth
+					+ " branch=" + Dungeon.branch
+					+ " " + eternalFireSnapshot(this));
 		}
 
 		@Override
 		public void seed(Level level, int cell, int amount) {
 			super.seed(level, cell, amount);
 			level.updateCellFlags(cell);
+			GameScene.updateMap(cell);
+			webParityLog("eternalFire seed depth=" + Dungeon.depth
+					+ " branch=" + Dungeon.branch
+					+ " cell=" + cell
+					+ " amount=" + amount
+					+ " terrain=" + level.map[cell]
+					+ " " + eternalFireSnapshot(this));
 		}
 
 		@Override
 		public void clear(int cell) {
+			int curValue = cur == null || cell < 0 || cell >= cur.length ? -1 : cur[cell];
+			webParityLog("eternalFire clear requested depth=" + Dungeon.depth
+					+ " branch=" + Dungeon.branch
+					+ " cell=" + cell
+					+ " curValue=" + curValue
+					+ " " + eternalFireSnapshot(this));
 			if (volume > 0 && cur[cell] > 0) {
 				fullyClear();
 			}
@@ -253,14 +334,26 @@ public class MagicalFireRoom extends SpecialRoom {
 
 		@Override
 		public void fullyClear() {
+			webParityLog("eternalFire fullyClear begin depth=" + Dungeon.depth
+					+ " branch=" + Dungeon.branch
+					+ " " + eternalFireSnapshot(this));
 			super.fullyClear();
 			Dungeon.level.buildFlagMaps();
+			GameScene.updateMap();
+			webParityLog("eternalFire fullyClear end depth=" + Dungeon.depth
+					+ " branch=" + Dungeon.branch
+					+ " " + eternalFireSnapshot(this)
+					+ " levelBlobs=" + Dungeon.level.blobDebugSummary());
 		}
 
 		@Override
 		public void use( BlobEmitter emitter ) {
 			super.use( emitter );
 			emitter.pour( ElmoParticle.FACTORY, 0.02f );
+			webParityLog("eternalFire use emitter depth=" + Dungeon.depth
+					+ " branch=" + Dungeon.branch
+					+ " emitter=" + emitter.getClass().getName()
+					+ " " + eternalFireSnapshot(this));
 		}
 
 		@Override
@@ -283,6 +376,89 @@ public class MagicalFireRoom extends SpecialRoom {
 				l.passable[cell] = false;
 				l.avoid[cell] = false;
 			}
+		}
+	}
+
+	private static void appendFireCell(StringBuilder summary, int cell) {
+		if (summary.length() > 0) {
+			summary.append(',');
+		}
+		summary.append(cell);
+	}
+
+	private static String roomSummary(Room room) {
+		return room.left + "," + room.top + "-" + room.right + "," + room.bottom;
+	}
+
+	private static String eternalFireSnapshot(EternalFire fire) {
+		return "volume=" + fire.volume
+				+ " area=" + fire.area.left + ',' + fire.area.top
+				+ '-' + fire.area.right + ',' + fire.area.bottom
+				+ " activeCells=" + activeCellCount(fire.cur)
+				+ " total=" + totalBlobValue(fire.cur)
+				+ " sample=[" + cellSample(fire.cur) + ']';
+	}
+
+	private static String relatedBlobSnapshot(String name, Blob blob) {
+		if (blob == null) {
+			return name + "=null";
+		}
+		return name + "{volume=" + blob.volume
+				+ " activeCells=" + activeCellCount(blob.cur)
+				+ " total=" + totalBlobValue(blob.cur)
+				+ " sample=[" + cellSample(blob.cur) + "]}";
+	}
+
+	private static int activeCellCount(int[] cells) {
+		if (cells == null) {
+			return 0;
+		}
+		int active = 0;
+		for (int value : cells) {
+			if (value > 0) {
+				active++;
+			}
+		}
+		return active;
+	}
+
+	private static int totalBlobValue(int[] cells) {
+		if (cells == null) {
+			return 0;
+		}
+		int total = 0;
+		for (int value : cells) {
+			total += value;
+		}
+		return total;
+	}
+
+	private static String cellSample(int[] cells) {
+		if (cells == null) {
+			return "cur=null";
+		}
+		StringBuilder sample = new StringBuilder();
+		int active = 0;
+		for (int i = 0; i < cells.length; i++) {
+			if (cells[i] > 0) {
+				if (active < 12) {
+					if (sample.length() > 0) {
+						sample.append(',');
+					}
+					sample.append(i).append(':').append(cells[i]);
+				}
+				active++;
+			}
+		}
+		if (active > 12) {
+			sample.append(",...");
+		}
+		return sample.toString();
+	}
+
+	private static void webParityLog(String message) {
+		if (DeviceCompat.webParityLoggingEnabled()) {
+			LOG.info("[WEB-PARITY] " + message);
 		}
 	}
 

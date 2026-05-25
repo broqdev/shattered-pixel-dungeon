@@ -42,6 +42,7 @@ import com.shatteredpixel.shatteredpixeldungeon.ui.Icons;
 import com.shatteredpixel.shatteredpixeldungeon.ui.StyledButton;
 import com.shatteredpixel.shatteredpixeldungeon.ui.TitleBackground;
 import com.shatteredpixel.shatteredpixeldungeon.ui.Window;
+import com.shatteredpixel.shatteredpixeldungeon.windows.WndMessage;
 import com.shatteredpixel.shatteredpixeldungeon.windows.WndOptions;
 import com.shatteredpixel.shatteredpixeldungeon.windows.WndSettings;
 import com.shatteredpixel.shatteredpixeldungeon.windows.WndVictoryCongrats;
@@ -57,6 +58,7 @@ import com.watabou.noosa.tweeners.Tweener;
 import com.watabou.utils.ColorMath;
 import com.watabou.utils.DeviceCompat;
 import com.watabou.utils.GameMath;
+import com.watabou.utils.PlatformSupport;
 import com.watabou.utils.RectF;
 
 import java.util.ArrayList;
@@ -80,6 +82,9 @@ public class TitleScene extends PixelScene {
 	private StyledButton btnChanges;
 	private StyledButton btnSettings;
 	private StyledButton btnAbout;
+	private StyledButton btnExportData;
+	private StyledButton btnImportData;
+	private boolean browserDataBackupBusy;
 
 	private BitmapText version;
 	private IconButton btnFade;
@@ -219,10 +224,38 @@ public class TitleScene extends PixelScene {
 		};
 		btnAbout.icon(Icons.get(Icons.SHPX));
 		add(btnAbout);
+
+		boolean browserDataBackupAvailable = Game.platform != null
+				&& Game.platform.browserDataBackup().isAvailable();
+		if (browserDataBackupAvailable) {
+			btnExportData = new StyledButton(GREY_TR, Messages.get(this, "browser_data_export")){
+				@Override
+				protected void onClick() {
+					exportBrowserDataBackup();
+				}
+			};
+			btnExportData.icon(Icons.get(Icons.COPY));
+			add(btnExportData);
+
+			btnImportData = new StyledButton(GREY_TR, Messages.get(this, "browser_data_import")){
+				@Override
+				protected void onClick() {
+					confirmBrowserDataImport();
+				}
+			};
+			btnImportData.icon(Icons.get(Icons.PASTE));
+			add(btnImportData);
+		}
 		
 		final int BTN_HEIGHT = 20;
-		int GAP = (int)(h - topRegion - (landscape() ? 3 : 4)*BTN_HEIGHT)/3;
-		GAP /= landscape() ? 3 : 5;
+		int rowCountForGap = landscape() ? 3 : 4;
+		int gapDivisor = landscape() ? 3 : 5;
+		if (browserDataBackupAvailable) {
+			rowCountForGap = landscape() ? 4 : 6;
+			gapDivisor = landscape() ? 4 : 7;
+		}
+		int GAP = (int)(h - topRegion - rowCountForGap*BTN_HEIGHT)/3;
+		GAP /= gapDivisor;
 		GAP = Math.max(GAP, 2);
 
 		float buttonAreaWidth = landscape() ? PixelScene.MIN_WIDTH_L-6 : PixelScene.MIN_WIDTH_P-2;
@@ -237,6 +270,10 @@ public class TitleScene extends PixelScene {
 			btnSettings.setRect(btnRankings.left(), btnRankings.bottom() + GAP, btnRankings.width(), BTN_HEIGHT);
 			btnChanges.setRect(btnSettings.right()+2, btnSettings.top(), btnRankings.width(), BTN_HEIGHT);
 			btnAbout.setRect(btnChanges.right()+2, btnSettings.top(), btnRankings.width(), BTN_HEIGHT);
+			if (browserDataBackupAvailable) {
+				btnExportData.setRect(btnPlay.left(), btnSettings.bottom()+GAP, (buttonAreaWidth/2)-1, BTN_HEIGHT);
+				btnImportData.setRect(btnExportData.right()+2, btnExportData.top(), btnExportData.width(), BTN_HEIGHT);
+			}
 		} else {
 			btnPlay.setRect(btnAreaLeft, insets.top + topRegion+GAP, buttonAreaWidth, BTN_HEIGHT);
 			align(btnPlay);
@@ -247,6 +284,10 @@ public class TitleScene extends PixelScene {
 			btnChanges.setRect(btnNews.right()+2, btnNews.top(), btnNews.width(), BTN_HEIGHT);
 			btnSettings.setRect(btnNews.left(), btnNews.bottom()+GAP, btnRankings.width(), BTN_HEIGHT);
 			btnAbout.setRect(btnSettings.right()+2, btnSettings.top(), btnSettings.width(), BTN_HEIGHT);
+			if (browserDataBackupAvailable) {
+				btnExportData.setRect(btnSettings.left(), btnSettings.bottom()+GAP, btnSettings.width(), BTN_HEIGHT);
+				btnImportData.setRect(btnExportData.right()+2, btnExportData.top(), btnExportData.width(), BTN_HEIGHT);
+			}
 		}
 
 		version = new BitmapText( "v" + Game.version, pixelFont);
@@ -329,6 +370,8 @@ public class TitleScene extends PixelScene {
 		btnChanges.enable(alpha != 0);
 		btnSettings.enable(alpha != 0);
 		btnAbout.enable(alpha != 0);
+		if (btnExportData != null) btnExportData.enable(alpha != 0 && !browserDataBackupBusy);
+		if (btnImportData != null) btnImportData.enable(alpha != 0 && !browserDataBackupBusy);
 
 		btnPlay.alpha(alpha);
 		btnSupport.alpha(alpha);
@@ -338,6 +381,8 @@ public class TitleScene extends PixelScene {
 		btnChanges.alpha(alpha);
 		btnSettings.alpha(alpha);
 		btnAbout.alpha(alpha);
+		if (btnExportData != null) btnExportData.alpha(alpha);
+		if (btnImportData != null) btnImportData.alpha(alpha);
 
 		version.alpha(alpha);
 		btnFade.icon().alpha(alpha);
@@ -346,6 +391,69 @@ public class TitleScene extends PixelScene {
 			btnExit.icon().alpha(alpha);
 		}
 
+	}
+
+	private void exportBrowserDataBackup() {
+		if (browserDataBackupBusy || Game.platform == null) {
+			return;
+		}
+		webParityLog("title browser data export click");
+		browserDataBackupBusy = true;
+		updateFade();
+		Game.platform.browserDataBackup().exportData(this::completeBrowserDataBackup);
+	}
+
+	private void confirmBrowserDataImport() {
+		if (browserDataBackupBusy || Game.platform == null) {
+			return;
+		}
+		webParityLog("title browser data import confirm opened");
+		ShatteredPixelDungeon.scene().addToFront(new WndOptions(
+				Icons.get(Icons.WARNING),
+				Messages.get(this, "browser_data_import_title"),
+				Messages.get(this, "browser_data_import_confirm"),
+				Messages.get(this, "browser_data_import_yes"),
+				Messages.get(this, "browser_data_import_no")
+		) {
+			@Override
+			protected void onSelect(int index) {
+				if (index == 0) {
+					importBrowserDataBackup();
+				}
+			}
+		});
+	}
+
+	private void importBrowserDataBackup() {
+		if (browserDataBackupBusy || Game.platform == null) {
+			return;
+		}
+		webParityLog("title browser data import confirmed");
+		browserDataBackupBusy = true;
+		updateFade();
+		Game.platform.browserDataBackup().importData(this::completeBrowserDataBackup);
+	}
+
+	private void completeBrowserDataBackup(PlatformSupport.BrowserDataBackupResult result) {
+		browserDataBackupBusy = false;
+		updateFade();
+		webParityLog("title browser data result success=" + result.success
+				+ " localStorageKeys=" + result.localStorageKeys
+				+ " indexedDbRecords=" + result.indexedDbRecords
+				+ " bytes=" + result.bytes);
+
+		if (result.message != null && !result.message.isEmpty()
+				&& ShatteredPixelDungeon.scene() instanceof TitleScene) {
+			ShatteredPixelDungeon.scene().addToFront(new WndMessage(browserDataBackupMessage(result)));
+		}
+	}
+
+	private String browserDataBackupMessage(PlatformSupport.BrowserDataBackupResult result) {
+		if (result.localStorageKeys == 0 && result.indexedDbRecords == 0 && result.bytes == 0) {
+			return result.message;
+		}
+		return Messages.get(this, "browser_data_result_counts", result.message,
+				result.localStorageKeys, result.indexedDbRecords, result.bytes);
 	}
 
 	private Fireball placeTorch(float x, float y ) {

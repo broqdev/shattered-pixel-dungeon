@@ -670,6 +670,7 @@ public class InterlevelScene extends PixelScene {
 			} else {
 				level = Dungeon.newLevel();
 			}
+			webParityLog("descend loaded level " + levelTransitionSnapshot(level));
 
 			int destCell = destinationCell(level);
 			webParityLog("descend destinationCell=" + destCell + " " + transitionSnapshot());
@@ -720,6 +721,7 @@ public class InterlevelScene extends PixelScene {
 		} else {
 			level = Dungeon.newLevel();
 		}
+		webParityLog("ascend loaded level " + levelTransitionSnapshot(level));
 
 		int destCell = destinationCell(level);
 		webParityLog("ascend destinationCell=" + destCell + " " + transitionSnapshot());
@@ -732,54 +734,70 @@ public class InterlevelScene extends PixelScene {
 	}
 
 	static int destinationCell(Level level, LevelTransition transition) {
-		LevelTransition destTransition = level.getTransition(transition.destType);
-		if (destTransition != null && destTransition.type == transition.destType) {
+		LevelTransition.Type destType = transition.destType != null
+				? transition.destType
+				: LevelTransition.defaultDestType(transition.type);
+		webParityLog("destinationCell inspect destType=" + destType
+				+ " rawDestType=" + transition.destType
+				+ " sourceTransition=" + transition.type
+				+ '@' + transition.cell()
+				+ " " + levelTransitionSnapshot(level));
+		LevelTransition destTransition = level.getTransitionExact(destType);
+		if (destTransition != null) {
 			webParityLog("destinationCell exact cell=" + destTransition.cell()
-					+ " destType=" + transition.destType
-					+ " levelDepth=" + Dungeon.depth + " levelBranch=" + Dungeon.branch);
+					+ " destType=" + destType
+					+ " levelDepth=" + Dungeon.depth + " levelBranch=" + Dungeon.branch
+					+ " " + level.cellDebugSummary(destTransition.cell()));
 			return destTransition.cell();
 		}
 
-		int terrainCell = terrainTransitionCell(level, transition.destType);
+		int terrainCell = level.terrainTransitionCell(destType);
 		if (terrainCell != -1) {
 			webParityLog("destinationCell terrain cell=" + terrainCell
-					+ " destType=" + transition.destType
-					+ " fallbackTransition=" + (destTransition == null ? "none" : destTransition.type));
+					+ " destType=" + destType
+					+ " fallbackTransition=" + transitionDebugName(destTransition)
+					+ " " + level.cellDebugSummary(terrainCell));
 			return terrainCell;
 		}
 
-		int fallback = destTransition != null ? destTransition.cell() : level.entrance();
+		LevelTransition fallbackTransition = level.getTransition(destType);
+		int fallback = fallbackTransition != null ? fallbackTransition.cell() : level.entrance();
 		webParityLog("destinationCell fallback cell=" + fallback
-				+ " destType=" + transition.destType
-				+ " fallbackTransition=" + (destTransition == null ? "none" : destTransition.type));
+				+ " destType=" + destType
+				+ " fallbackTransition=" + transitionDebugName(fallbackTransition)
+				+ " " + level.cellDebugSummary(fallback)
+				+ " " + levelTransitionSnapshot(level));
 		return fallback;
-	}
-
-	private static int terrainTransitionCell(Level level, LevelTransition.Type type) {
-		for (int i = 0; i < level.length(); i++) {
-			switch (level.map[i]) {
-				case Terrain.ENTRANCE:
-				case Terrain.ENTRANCE_SP:
-					if (type == LevelTransition.Type.REGULAR_ENTRANCE || type == LevelTransition.Type.BRANCH_ENTRANCE) {
-						return i;
-					}
-					break;
-				case Terrain.EXIT:
-				case Terrain.LOCKED_EXIT:
-				case Terrain.UNLOCKED_EXIT:
-					if (type == LevelTransition.Type.REGULAR_EXIT || type == LevelTransition.Type.BRANCH_EXIT) {
-						return i;
-					}
-					break;
-			}
-		}
-		return -1;
 	}
 
 	private static void webParityLog(String message) {
 		if (DeviceCompat.webParityLoggingEnabled()) {
 			LOG.info("[WEB-PARITY] " + message);
 		}
+	}
+
+	private static String levelTransitionSnapshot(Level level) {
+		if (level == null) {
+			return "level=null";
+		}
+		return "level=" + level.getClass().getName()
+				+ " depth=" + Dungeon.depth
+				+ " branch=" + Dungeon.branch
+				+ " entranceAccessor=" + level.entrance()
+				+ " exitAccessor=" + level.exit()
+				+ " width=" + level.width()
+				+ " height=" + level.height()
+				+ " " + level.transitionDebugSummary()
+				+ " " + level.transitionTerrainDebugSummary()
+				+ " " + level.blobDebugSummary();
+	}
+
+	private static String transitionDebugName(LevelTransition transition) {
+		if (transition == null) {
+			return "none";
+		}
+		return transition.type + "@" + transition.cell()
+				+ "->" + transition.destDepth + "/" + transition.destBranch + "/" + transition.destType;
 	}
 
 	private static String transitionSnapshot() {

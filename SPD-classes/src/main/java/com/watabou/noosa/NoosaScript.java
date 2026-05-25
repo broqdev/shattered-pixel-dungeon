@@ -46,6 +46,8 @@ public class NoosaScript extends Script {
 	private Camera lastCamera;
 	private Vertexbuffer clientBuffer;
 	private int clientBufferCapacity;
+	private int clientIndexBuffer = -1;
+	private int clientIndexBufferCapacity;
 	
 	public NoosaScript() {
 
@@ -72,6 +74,7 @@ public class NoosaScript extends Script {
 		
 		aXY.enable();
 		aUV.enable();
+		Quad.bindIndices();
 		
 	}
 
@@ -79,14 +82,21 @@ public class NoosaScript extends Script {
 
 		bindClientVertices( vertices );
 
-		Quad.releaseIndices();
-		Gdx.gl20.glDrawElements( Gdx.gl20.GL_TRIANGLES, size, Gdx.gl20.GL_UNSIGNED_SHORT, indices );
+		if (DeviceCompat.isWeb()) {
+			bindClientIndices( indices, size );
+			Gdx.gl20.glDrawElements( Gdx.gl20.GL_TRIANGLES, size, Gdx.gl20.GL_UNSIGNED_SHORT, 0 );
+		} else {
+			Quad.releaseIndices();
+			Gdx.gl20.glDrawElements( Gdx.gl20.GL_TRIANGLES, size, Gdx.gl20.GL_UNSIGNED_SHORT, indices );
+		}
 		Quad.bindIndices();
 	}
 
 	public void drawQuad( FloatBuffer vertices ) {
 
 		bindClientVertices( vertices );
+
+		Quad.bindIndices();
 		
 		Gdx.gl20.glDrawElements( Gdx.gl20.GL_TRIANGLES, Quad.SIZE, Gdx.gl20.GL_UNSIGNED_SHORT, 0 );
 	}
@@ -101,6 +111,8 @@ public class NoosaScript extends Script {
 		aUV.vertexBuffer( 2, 4, 2 );
 
 		buffer.release();
+
+		Quad.bindIndices();
 		
 		Gdx.gl20.glDrawElements( Gdx.gl20.GL_TRIANGLES, Quad.SIZE, Gdx.gl20.GL_UNSIGNED_SHORT, 0 );
 	}
@@ -112,6 +124,8 @@ public class NoosaScript extends Script {
 		}
 
 		bindClientVertices( vertices );
+
+		Quad.bindIndices();
 		
 		Gdx.gl20.glDrawElements( Gdx.gl20.GL_TRIANGLES, Quad.SIZE * size, Gdx.gl20.GL_UNSIGNED_SHORT, 0 );
 	}
@@ -149,8 +163,46 @@ public class NoosaScript extends Script {
 		aUV.vertexBuffer( 2, 4, 2 );
 
 		buffer.release();
+
+		Quad.bindIndices();
 		
 		Gdx.gl20.glDrawElements( Gdx.gl20.GL_TRIANGLES, Quad.SIZE * length, Gdx.gl20.GL_UNSIGNED_SHORT, Quad.SIZE * Short.SIZE/8 * offset );
+	}
+
+	private void bindClientIndices( ShortBuffer indices, int size ) {
+		if (clientIndexBuffer == -1) {
+			clientIndexBuffer = Gdx.gl20.glGenBuffer();
+		}
+
+		ShortBuffer update = slice( indices, 0, size );
+		Gdx.gl20.glBindBuffer( Gdx.gl20.GL_ELEMENT_ARRAY_BUFFER, clientIndexBuffer );
+		if (clientIndexBufferCapacity < size) {
+			Gdx.gl20.glBufferData( Gdx.gl20.GL_ELEMENT_ARRAY_BUFFER, size * Short.SIZE/8, update, Gdx.gl20.GL_DYNAMIC_DRAW );
+			clientIndexBufferCapacity = size;
+		} else {
+			Gdx.gl20.glBufferSubData( Gdx.gl20.GL_ELEMENT_ARRAY_BUFFER, 0, size * Short.SIZE/8, update );
+		}
+	}
+
+	private static ShortBuffer slice( ShortBuffer buffer, int start, int end ) {
+		ShortBuffer update = buffer.duplicate();
+		((Buffer)update).position( start );
+		((Buffer)update).limit( end );
+		return update.slice();
+	}
+
+	@Override
+	public void delete() {
+		super.delete();
+		if (clientBuffer != null && !clientBuffer.isDeleted()) {
+			clientBuffer.delete();
+			clientBuffer = null;
+		}
+		if (clientIndexBuffer != -1) {
+			Gdx.gl20.glDeleteBuffer( clientIndexBuffer );
+			clientIndexBuffer = -1;
+			clientIndexBufferCapacity = 0;
+		}
 	}
 	
 	public void lighting( float rm, float gm, float bm, float am, float ra, float ga, float ba, float aa ) {

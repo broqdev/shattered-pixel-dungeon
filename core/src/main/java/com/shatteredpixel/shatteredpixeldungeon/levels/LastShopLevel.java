@@ -26,6 +26,7 @@ import com.shatteredpixel.shatteredpixeldungeon.Bones;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
+import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.Imp;
 import com.shatteredpixel.shatteredpixeldungeon.items.Heap;
 import com.shatteredpixel.shatteredpixeldungeon.items.Item;
 import com.shatteredpixel.shatteredpixeldungeon.levels.builders.Builder;
@@ -38,12 +39,16 @@ import com.shatteredpixel.shatteredpixeldungeon.levels.rooms.standard.exit.ExitR
 import com.shatteredpixel.shatteredpixeldungeon.levels.rooms.standard.ImpShopRoom;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
 import com.watabou.noosa.Group;
+import com.watabou.utils.DeviceCompat;
 import com.watabou.utils.Point;
 import com.watabou.utils.Random;
 
 import java.util.ArrayList;
+import java.util.logging.Logger;
 
 public class LastShopLevel extends RegularLevel {
+
+	private static final Logger LOG = Logger.getLogger(LastShopLevel.class.getName());
 	
 	{
 		color1 = 0x4b6636;
@@ -70,6 +75,8 @@ public class LastShopLevel extends RegularLevel {
 					map[i] = Terrain.DOOR;
 				}
 			}
+
+			spawnCompletedImpShop();
 			
 			return true;
 		} else {
@@ -94,6 +101,57 @@ public class LastShopLevel extends RegularLevel {
 				.setPathVariance(0f)
 				.setPathLength(1f, new float[]{1})
 				.setTunnelLength(new float[]{0, 0, 1}, new float[]{1});
+	}
+
+	void spawnCompletedImpShop() {
+		boolean completed = Imp.Quest.isCompleted();
+		for (Room room : rooms) {
+			if (room instanceof ImpShopRoom) {
+				ImpShopRoom shop = (ImpShopRoom)room;
+				webParityLog("lastShop impShop build completed=" + completed
+						+ " spawned=" + shop.shopSpawned()
+						+ " room=" + roomSummary(shop)
+						+ " shopHeaps=" + shopHeapCount(shop)
+						+ " shopMobs=" + shopMobCount(shop));
+				if (completed && !shop.shopSpawned()) {
+					shop.spawnShop(this);
+					webParityLog("lastShop impShop spawned completed=" + completed
+							+ " room=" + roomSummary(shop)
+							+ " shopHeaps=" + shopHeapCount(shop)
+							+ " shopMobs=" + shopMobCount(shop));
+				}
+			}
+		}
+	}
+
+	private int shopHeapCount(ImpShopRoom shop) {
+		int count = 0;
+		for (Heap heap : heaps.valueList()) {
+			if (shop.inside(cellToPoint(heap.pos))) {
+				count++;
+			}
+		}
+		return count;
+	}
+
+	private int shopMobCount(ImpShopRoom shop) {
+		int count = 0;
+		for (Mob mob : mobs) {
+			if (shop.inside(cellToPoint(mob.pos))) {
+				count++;
+			}
+		}
+		return count;
+	}
+
+	private static String roomSummary(Room room) {
+		return room.left + "," + room.top + "-" + room.right + "," + room.bottom;
+	}
+
+	private static void webParityLog(String message) {
+		if (DeviceCompat.webParityLoggingEnabled()) {
+			LOG.info("[WEB-PARITY] " + message);
+		}
 	}
 	
 	@Override

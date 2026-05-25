@@ -22,6 +22,7 @@
 package com.shatteredpixel.shatteredpixeldungeon.tiles;
 
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
+import com.shatteredpixel.shatteredpixeldungeon.journal.Notes;
 import com.shatteredpixel.shatteredpixeldungeon.levels.Level;
 import com.watabou.noosa.Image;
 import com.watabou.noosa.NoosaScript;
@@ -114,6 +115,10 @@ public abstract class CustomTilemap implements Bundlable {
 	}
 
 	public String desc(int tileX, int tileY){
+		return null;
+	}
+
+	public Notes.Landmark landmark(){
 		return null;
 	}
 
