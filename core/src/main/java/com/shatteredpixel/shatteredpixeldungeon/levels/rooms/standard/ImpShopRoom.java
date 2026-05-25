@@ -32,14 +32,18 @@ import com.shatteredpixel.shatteredpixeldungeon.levels.Terrain;
 import com.shatteredpixel.shatteredpixeldungeon.levels.rooms.special.ShopRoom;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.watabou.utils.Bundle;
+import com.watabou.utils.DeviceCompat;
 import com.watabou.utils.Point;
 import com.watabou.utils.Random;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.logging.Logger;
 
 //shops probably shouldn't extend special room, because of cases like this.
 public class ImpShopRoom extends ShopRoom {
+
+	private static final Logger LOG = Logger.getLogger(ImpShopRoom.class.getName());
 
 	private boolean impSpawned = false;
 
@@ -97,9 +101,19 @@ public class ImpShopRoom extends ShopRoom {
 	}
 
 	public void spawnShop(Level level){
+		webParityLog("impShop spawn level=" + level.getClass().getName()
+				+ " completed=" + Imp.Quest.isCompleted()
+				+ " alreadySpawned=" + impSpawned
+				+ " room=" + left + "," + top + "-" + right + "," + bottom);
 		impSpawned = true;
 		placeShopkeeper(level);
 		placeItems(level);
+	}
+
+	private static void webParityLog(String message) {
+		if (DeviceCompat.webParityLoggingEnabled()) {
+			LOG.info("[WEB-PARITY] " + message);
+		}
 	}
 
 	@Override
