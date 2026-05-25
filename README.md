@@ -1,3 +1,11 @@
+The repo migrates Shattered Pixel Dungeon to web with [TeaVM](https://github.com/konsoletyper/teavm/tree/master) . You can try it in [itch.io](https://broqdev.itch.io/shattered-pixel-dungeon-web).
+
+FYI it's achieved by running Codex with [TaskMarkDown skill](https://github.com/broqdev/noisy_room) .
+
+## Orginal README
+
+---
+
 # Shattered Pixel Dungeon
 
 [Shattered Pixel Dungeon](https://shatteredpixel.com/shatteredpd/) is an open-source traditional roguelike dungeon crawler with randomized levels and enemies, and hundreds of items to collect and use. It's based on the [source code of Pixel Dungeon](https://github.com/00-Evan/pixel-dungeon-gradle), by [Watabou](https://watabou.itch.io/).
