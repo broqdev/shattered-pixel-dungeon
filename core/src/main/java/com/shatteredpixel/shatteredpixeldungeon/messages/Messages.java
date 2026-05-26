@@ -166,9 +166,12 @@ public class Messages {
 
 	public static String format( String format, Object...args ) {
 		try {
-			return String.format(locale(), format, args);
+			return String.format(locale(), MessageFormatNormalizer.normalizeImplicitArgumentIndexes(format), args);
 		} catch (IllegalFormatException e) {
 			ShatteredPixelDungeon.reportException( new Exception("formatting error for the string: " + format, e) );
+			return format;
+		} catch (RuntimeException e) {
+			ShatteredPixelDungeon.reportException( new Exception("formatter runtime error for the string: " + format, e) );
 			return format;
 		}
 	}
