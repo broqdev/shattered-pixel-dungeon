@@ -49,7 +49,7 @@ public class Icecap extends Plant {
 		}
 
 		for (int i : PathFinder.NEIGHBOURS9){
-			if (!Dungeon.level.solid[pos+i]) {
+			if (Dungeon.level.insideMap(pos+i) && !Dungeon.level.solid[pos+i]) {
 				Freezing.affect( pos+i );
 				if (Actor.findChar(pos+i) instanceof Mob){
 					Buff.prolong(Actor.findChar(pos+i), Trap.HazardAssistTracker.class, Trap.HazardAssistTracker.DURATION);

@@ -137,7 +137,7 @@ public class Monk extends Mob {
 	@Override
 	public void restoreFromBundle( Bundle bundle ) {
 		super.restoreFromBundle( bundle );
-		focusCooldown = bundle.getInt( FOCUS_COOLDOWN );
+		focusCooldown = bundle.getFloat( FOCUS_COOLDOWN );
 	}
 	
 	public static class Focus extends Buff {

@@ -1578,7 +1578,7 @@ public class GameScene extends PixelScene {
 	}
 	
 	public static void updateMap( int cell ) {
-		if (scene != null) {
+		if (scene != null && isLevelCell(cell)) {
 			scene.tiles.updateMapCell( cell );
 			scene.visualGrid.updateMapCell( cell );
 			scene.terrainFeatures.updateMapCell( cell );
@@ -1592,13 +1592,13 @@ public class GameScene extends PixelScene {
 	}
 
 	public static void plantSeed( int cell ) {
-		if (scene != null) {
+		if (scene != null && isLevelCell(cell)) {
 			scene.terrainFeatures.growPlant( cell );
 		}
 	}
 
 	public static void discoverTile( int pos, int oldValue ) {
-		if (scene != null) {
+		if (scene != null && isLevelCell(pos)) {
 			scene.tiles.discover( pos, oldValue );
 		}
 	}
@@ -1684,7 +1684,7 @@ public class GameScene extends PixelScene {
 	}
 	
 	public static void updateFog( int cell, int radius ){
-		if (scene != null) {
+		if (scene != null && isLevelCell(cell)) {
 			scene.fog.updateFog( cell, radius );
 			scene.wallBlocking.updateArea( cell, radius );
 		}
@@ -1913,10 +1913,7 @@ public class GameScene extends PixelScene {
 	}
 
 	public static void examineCell( Integer cell ) {
-		if (cell == null
-				|| cell < 0
-				|| cell > Dungeon.level.length()
-				|| (!Dungeon.level.visited[cell] && !Dungeon.level.mapped[cell])) {
+		if (!isInspectableCell(cell)) {
 			return;
 		}
 
@@ -2011,10 +2008,7 @@ public class GameScene extends PixelScene {
 
 		@Override
 		public void onRightClick(Integer cell) {
-			if (cell == null
-					|| cell < 0
-					|| cell > Dungeon.level.length()
-					|| (!Dungeon.level.visited[cell] && !Dungeon.level.mapped[cell])) {
+			if (!isInspectableCell(cell)) {
 				return;
 			}
 
@@ -2116,4 +2110,16 @@ public class GameScene extends PixelScene {
 			return null;
 		}
 	};
+
+	static boolean isLevelCell(Integer cell) {
+		return cell != null
+				&& Dungeon.level != null
+				&& cell >= 0
+				&& cell < Dungeon.level.length();
+	}
+
+	static boolean isInspectableCell(Integer cell) {
+		return isLevelCell(cell)
+				&& (Dungeon.level.visited[cell] || Dungeon.level.mapped[cell]);
+	}
 }

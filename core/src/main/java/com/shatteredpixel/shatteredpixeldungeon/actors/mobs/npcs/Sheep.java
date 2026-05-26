@@ -101,6 +101,6 @@ public class Sheep extends NPC {
 	@Override
 	public void restoreFromBundle(Bundle bundle) {
 		super.restoreFromBundle(bundle);
-		lifespan = bundle.getInt(LIFESPAN);
+		lifespan = bundle.getFloat(LIFESPAN);
 	}
 }

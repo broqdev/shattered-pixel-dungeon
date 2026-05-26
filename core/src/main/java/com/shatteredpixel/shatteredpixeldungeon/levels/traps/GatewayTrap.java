@@ -87,7 +87,8 @@ public class GatewayTrap extends Trap {
 
 			ArrayList<Integer> telePositions = new ArrayList<>();
 			for (int i : PathFinder.NEIGHBOURS8){
-				if (Dungeon.level.passable[telePos+i]
+				if (Dungeon.level.insideMap(telePos+i)
+						&& Dungeon.level.passable[telePos+i]
 						&& Actor.findChar( telePos+i ) == null){
 					telePositions.add(telePos+i);
 				}

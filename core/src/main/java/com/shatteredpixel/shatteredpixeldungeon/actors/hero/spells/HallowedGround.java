@@ -189,7 +189,7 @@ public class HallowedGround extends TargetedClericSpell {
 						}
 
 						int c = Dungeon.level.map[cell];
-						if (c == Terrain.GRASS && Dungeon.level.plants.get(c) == null) {
+						if (c == Terrain.GRASS && Dungeon.level.plants.get(cell) == null) {
 							if (Random.Int(chance) == 0) {
 								if (!Regeneration.regenOn()
 										|| (Dungeon.hero.buff(HallowedFurrowTracker.class) != null && Dungeon.hero.buff(HallowedFurrowTracker.class).count() > 100)){

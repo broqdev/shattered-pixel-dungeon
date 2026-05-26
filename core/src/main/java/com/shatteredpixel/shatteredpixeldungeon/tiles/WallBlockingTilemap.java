@@ -24,6 +24,7 @@ package com.shatteredpixel.shatteredpixeldungeon.tiles;
 import com.shatteredpixel.shatteredpixeldungeon.Assets;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.levels.HallsBossLevel;
+import com.shatteredpixel.shatteredpixeldungeon.levels.Level;
 import com.shatteredpixel.shatteredpixeldungeon.levels.MiningLevel;
 import com.shatteredpixel.shatteredpixeldungeon.levels.Terrain;
 import com.watabou.noosa.TextureFilm;
@@ -50,9 +51,7 @@ public class WallBlockingTilemap extends Tilemap {
 	public synchronized void updateMap() {
 		for (int cell = 0; cell < data.length; cell++) {
 			//force all top/bottom row, and none-discoverable cells to cleared
-			if (!Dungeon.level.discoverable[cell]
-					|| (cell - mapWidth) <= 0
-					|| (cell + mapWidth) >= size){
+			if (clearsCell(Dungeon.level, cell, mapWidth, size)){
 				data[cell] = CLEARED;
 			} else {
 				updateMapCell(cell);
@@ -66,6 +65,15 @@ public class WallBlockingTilemap extends Tilemap {
 	
 	@Override
 	public synchronized void updateMapCell(int cell) {
+		if (cell < 0 || cell >= data.length) {
+			return;
+		}
+
+		if (clearsCell(Dungeon.level, cell, mapWidth, size)) {
+			data[cell] = CLEARED;
+			super.updateMapCell(cell);
+			return;
+		}
 
 		//FIXME this is to address the wall blocking looking odd on the new yog floor.
 		// The true solution is to improve the fog of war so the blockers aren't necessary.
@@ -231,10 +239,20 @@ public class WallBlockingTilemap extends Tilemap {
 		for (int i = x; i <= x+w; i++){
 			for (int j = y; j <= y+h; j++){
 				cell = i + j*mapWidth;
-				if (cell < data.length && data[cell] != CLEARED)
+				if (cell >= 0 && cell < data.length && data[cell] != CLEARED)
 					updateMapCell(cell);
 			}
 		}
+	}
+
+	static boolean clearsCell(Level level, int cell, int mapWidth, int size) {
+		return level == null
+				|| cell < 0
+				|| cell >= size
+				|| level.discoverable == null
+				|| !level.discoverable[cell]
+				|| (cell - mapWidth) <= 0
+				|| (cell + mapWidth) >= size;
 	}
 	
 }

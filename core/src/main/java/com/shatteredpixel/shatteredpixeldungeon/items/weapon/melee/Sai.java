@@ -200,7 +200,7 @@ public class Sai extends MeleeWeapon {
 		@Override
 		public void restoreFromBundle(Bundle bundle) {
 			super.restoreFromBundle(bundle);
-			comboTime = bundle.getInt(TIME);
+			comboTime = bundle.getFloat(TIME);
 			hits = bundle.getInt(RECENT_HITS);
 		}
 	}

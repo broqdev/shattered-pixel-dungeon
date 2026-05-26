@@ -108,7 +108,11 @@ public class LloydsBeacon extends Artifact {
 
 		super.execute( hero, action );
 
-		if (action == AC_SET || action == AC_RETURN) {
+		boolean zapAction = AC_ZAP.equals(action);
+		boolean setAction = AC_SET.equals(action);
+		boolean returnAction = AC_RETURN.equals(action);
+
+		if (setAction || returnAction) {
 			
 			if (Dungeon.bossLevel() || !Dungeon.interfloorTeleportAllowed()) {
 				hero.spend( LloydsBeacon.TIME_TO_USE );
@@ -125,7 +129,7 @@ public class LloydsBeacon extends Artifact {
 			}
 		}
 
-		if (action == AC_ZAP ){
+		if (zapAction){
 
 			curUser = hero;
 			int chargesToUse = Dungeon.depth > 20 ? 2 : 1;
@@ -142,7 +146,7 @@ public class LloydsBeacon extends Artifact {
 				GameScene.selectCell(zapper);
 			}
 
-		} else if (action == AC_SET) {
+		} else if (setAction) {
 			
 			returnDepth = Dungeon.depth;
 			returnPos = hero.pos;
@@ -155,7 +159,7 @@ public class LloydsBeacon extends Artifact {
 			
 			GLog.i( Messages.get(this, "return") );
 			
-		} else if (action == AC_RETURN) {
+		} else if (returnAction) {
 			
 			if (returnDepth == Dungeon.depth) {
 				ScrollOfTeleportation.appear( hero, returnPos );
