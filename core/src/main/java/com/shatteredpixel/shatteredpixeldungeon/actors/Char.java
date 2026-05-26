@@ -183,7 +183,11 @@ public abstract class Char extends Actor {
 	public enum Alignment{
 		ENEMY,
 		NEUTRAL,
-		ALLY
+		ALLY;
+
+		public static boolean matches(Alignment a, Alignment b) {
+			return a == b || (a != null && b != null && a.name().equals(b.name()));
+		}
 	}
 	public Alignment alignment;
 	
@@ -298,7 +302,7 @@ public abstract class Char extends Actor {
 		c.spend( 1 / c.speed() );
 
 		if (c == Dungeon.hero){
-			if (Dungeon.hero.subClass == HeroSubClass.FREERUNNER){
+			if (HeroSubClass.matches(Dungeon.hero.subClass, HeroSubClass.FREERUNNER)){
 				Buff.affect(Dungeon.hero, Momentum.class).gainStack();
 			}
 
@@ -388,7 +392,7 @@ public abstract class Char extends Actor {
 			if (this instanceof Hero){
 				Hero h = (Hero)this;
 				if (h.belongings.attackingWeapon() instanceof MissileWeapon
-						&& h.subClass == HeroSubClass.SNIPER
+						&& HeroSubClass.matches(h.subClass, HeroSubClass.SNIPER)
 						&& !Dungeon.level.adjacent(h.pos, enemy.pos)){
 					dr = 0;
 				}
@@ -421,7 +425,7 @@ public abstract class Char extends Actor {
 				if (this == Dungeon.hero && Dungeon.hero.hasTalent(Talent.SEARING_LIGHT)){
 					dmg += 1 + 2*Dungeon.hero.pointsInTalent(Talent.SEARING_LIGHT);
 				}
-				if (this != Dungeon.hero && Dungeon.hero.subClass == HeroSubClass.PRIEST){
+				if (this != Dungeon.hero && HeroSubClass.matches(Dungeon.hero.subClass, HeroSubClass.PRIEST)){
 					enemy.damage(5+Dungeon.hero.lvl, GuidingLight.INSTANCE);
 				}
 			}
@@ -656,7 +660,7 @@ public abstract class Char extends Actor {
 			acuRoll *= buff.evasionAndAccuracyFactor();
 		}
 		acuRoll *= AscensionChallenge.statModifier(attacker);
-		if (Dungeon.hero.heroClass != HeroClass.CLERIC
+		if (!HeroClass.matches(Dungeon.hero.heroClass, HeroClass.CLERIC)
 				&& Dungeon.hero.hasTalent(Talent.BLESS)
 				&& attacker.alignment == Alignment.ALLY){
 			// + 3%/5%
@@ -672,7 +676,7 @@ public abstract class Char extends Actor {
 			defRoll *= buff.evasionAndAccuracyFactor();
 		}
 		defRoll *= AscensionChallenge.statModifier(defender);
-		if (Dungeon.hero.heroClass != HeroClass.CLERIC
+		if (!HeroClass.matches(Dungeon.hero.heroClass, HeroClass.CLERIC)
 				&& Dungeon.hero.hasTalent(Talent.BLESS)
 				&& defender.alignment == Alignment.ALLY){
 			// + 3%/5%
@@ -738,7 +742,7 @@ public abstract class Char extends Actor {
 			damage -= Random.NormalIntRange(min, 2*min);
 			damage = Math.max(damage, 0);
 		} else if (this == Dungeon.hero
-				&& Dungeon.hero.heroClass != HeroClass.CLERIC
+				&& !HeroClass.matches(Dungeon.hero.heroClass, HeroClass.CLERIC)
 				&& Dungeon.hero.hasTalent(Talent.SHIELD_OF_LIGHT)
 				&& TargetHealthIndicator.instance.target() == enemy){
 			//33/50%
@@ -988,7 +992,7 @@ public abstract class Char extends Actor {
 
 			//special case for sniper when using ranged attacks
 			if (src == Dungeon.hero
-					&& Dungeon.hero.subClass == HeroSubClass.SNIPER
+					&& HeroSubClass.matches(Dungeon.hero.subClass, HeroSubClass.SNIPER)
 					&& !Dungeon.level.adjacent(Dungeon.hero.pos, pos)
 					&& Dungeon.hero.belongings.attackingWeapon() instanceof MissileWeapon){
 				icon = FloatingText.PHYS_DMG_NO_BLOCK;

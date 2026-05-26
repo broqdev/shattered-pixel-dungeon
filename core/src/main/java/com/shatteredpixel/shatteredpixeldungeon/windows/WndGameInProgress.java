@@ -54,7 +54,7 @@ public class WndGameInProgress extends Window {
 		final GamesInProgress.Info info = GamesInProgress.check(slot);
 		
 		String className = null;
-		if (info.subClass != HeroSubClass.NONE){
+		if (!HeroSubClass.matches(info.subClass, HeroSubClass.NONE)){
 			className = info.subClass.title();
 		} else {
 			className = info.heroClass.title();

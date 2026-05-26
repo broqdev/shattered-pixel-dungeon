@@ -123,7 +123,7 @@ public class BlessSpell extends TargetedClericSpell {
 			}
 		}
 
-		if (ch.alignment != Char.Alignment.ALLY && hero.subClass == HeroSubClass.PRIEST){
+		if (ch.alignment != Char.Alignment.ALLY && HeroSubClass.matches(hero.subClass, HeroSubClass.PRIEST)){
 			Buff.affect(ch, GuidingLight.Illuminated.class);
 		}
 	}

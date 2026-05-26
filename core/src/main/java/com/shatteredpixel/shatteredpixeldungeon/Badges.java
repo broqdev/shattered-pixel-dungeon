@@ -1383,7 +1383,7 @@ public class Badges {
 		} else if (badge == Badge.BOSS_SLAIN_3_ALL_SUBCLASSES){
 
 			for (HeroSubClass cls : HeroSubClass.values()){
-				if (cls == HeroSubClass.NONE) continue;
+				if (HeroSubClass.matches(cls, HeroSubClass.NONE)) continue;
 				result += "\n";
 				if (isUnlocked(thirdBossSubclassBadges.get(cls)))   result += "_" + Messages.titleCase(cls.title()) + "_";
 				else                                                result += Messages.titleCase(cls.title()) ;

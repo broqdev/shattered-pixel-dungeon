@@ -144,7 +144,7 @@ public class Bee extends Mob {
 	@Override
 	protected Char chooseEnemy() {
 		//if the pot is no longer present, default to regular AI behaviour
-		if (alignment == Alignment.ALLY || (potHolder == -1 && potPos == -1)){
+		if (Alignment.matches(alignment, Alignment.ALLY) || (potHolder == -1 && potPos == -1)){
 			return super.chooseEnemy();
 		
 		//if something is holding the pot, target that
@@ -155,7 +155,7 @@ public class Bee extends Mob {
 		} else {
 
 			//copypasta from regular mob logic for aggression with added limit for pot distance
-			if ((alignment == Alignment.ENEMY || buff(Amok.class) != null ) && state != PASSIVE && state != SLEEPING) {
+			if ((Alignment.matches(alignment, Alignment.ENEMY) || buff(Amok.class) != null ) && state != PASSIVE && state != SLEEPING) {
 				if (enemy != null
 						&& enemy.buff(StoneOfAggression.Aggression.class) != null
 						&& Dungeon.level.distance(enemy.pos, potPos) <= 3){
@@ -174,7 +174,7 @@ public class Bee extends Mob {
 			//try to find a new enemy in these circumstances
 			if (enemy == null || !enemy.isAlive() || !Actor.chars().contains(enemy) || state == WANDERING
 					|| Dungeon.level.distance(enemy.pos, potPos) > 3
-					|| (alignment == Alignment.ALLY && enemy.alignment == Alignment.ALLY)
+					|| (Alignment.matches(alignment, Alignment.ALLY) && Alignment.matches(enemy.alignment, Alignment.ALLY))
 					|| (buff( Amok.class ) == null && enemy.isInvulnerable(getClass()))){
 				
 				//target closest potential enemy near the pot
@@ -182,9 +182,9 @@ public class Bee extends Mob {
 				for (Mob mob : Dungeon.level.mobs) {
 					if (!(mob == this)
 							&& Dungeon.level.distance(mob.pos, potPos) <= 3
-							&& mob.alignment != Alignment.NEUTRAL
+							&& !Alignment.matches(mob.alignment, Alignment.NEUTRAL)
 							&& !mob.isInvulnerable(getClass())
-							&& !(alignment == Alignment.ALLY && mob.alignment == Alignment.ALLY)) {
+							&& !(Alignment.matches(alignment, Alignment.ALLY) && Alignment.matches(mob.alignment, Alignment.ALLY))) {
 						if (closest == null || Dungeon.level.distance(closest.pos, pos) > Dungeon.level.distance(mob.pos, pos)){
 							closest = mob;
 						}
@@ -194,7 +194,7 @@ public class Bee extends Mob {
 				if (closest != null){
 					return closest;
 				} else {
-					if (alignment != Alignment.ALLY && Dungeon.level.distance(Dungeon.hero.pos, potPos) <= 3){
+					if (!Alignment.matches(alignment, Alignment.ALLY) && Dungeon.level.distance(Dungeon.hero.pos, potPos) <= 3){
 						return Dungeon.hero;
 					} else {
 						return null;
@@ -211,7 +211,7 @@ public class Bee extends Mob {
 
 	@Override
 	protected boolean getCloser(int target) {
-		if (alignment == Alignment.ALLY && enemy == null && buffs(AllyBuff.class).isEmpty()) {
+		if (Alignment.matches(alignment, Alignment.ALLY) && enemy == null && buffs(AllyBuff.class).isEmpty()) {
 			target = Dungeon.hero.pos;
 		} else if (enemy != null && Actor.findById(potHolder) == enemy) {
 			target = enemy.pos;
@@ -227,7 +227,7 @@ public class Bee extends Mob {
 	
 	@Override
 	public String description() {
-		if (alignment == Alignment.ALLY && buffs(AllyBuff.class).isEmpty()){
+		if (Alignment.matches(alignment, Alignment.ALLY) && buffs(AllyBuff.class).isEmpty()){
 			return Messages.get(this, "desc_honey");
 		} else {
 			return super.description();

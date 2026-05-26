@@ -85,4 +85,8 @@ public enum HeroSubClass {
 		return icon;
 	}
 
+	public static boolean matches(HeroSubClass a, HeroSubClass b) {
+		return a == b || (a != null && b != null && a.name().equals(b.name()));
+	}
+
 }

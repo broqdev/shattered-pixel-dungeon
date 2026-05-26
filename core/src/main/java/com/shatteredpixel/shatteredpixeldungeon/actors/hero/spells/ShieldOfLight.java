@@ -82,7 +82,7 @@ public class ShieldOfLight extends TargetedClericSpell {
 		//1 turn less as the casting is instant
 		Buff.prolong( hero, ShieldOfLightTracker.class, 4f).object = ch.id();
 
-		if (hero.subClass == HeroSubClass.PRIEST) {
+		if (HeroSubClass.matches(hero.subClass, HeroSubClass.PRIEST)) {
 			Buff.affect(ch, GuidingLight.Illuminated.class);
 		}
 
