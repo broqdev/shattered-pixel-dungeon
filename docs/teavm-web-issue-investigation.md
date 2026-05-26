@@ -1,11 +1,11 @@
 # TeaVM Web Issue Investigation
 
-This note records three web-only parity bugs found while testing the TeaVM build. They looked like ordinary game-state, item, or UI bugs at first, but the shared pattern was backend-specific behavior in generated JavaScript: Java reflection metadata, enum restoration, and formatter argument handling.
+This note records five web-only parity bugs found while testing the TeaVM build. They looked like ordinary game-state, item, talent, or UI bugs at first, but the shared pattern was backend-specific behavior in generated JavaScript: Java reflection metadata, enum restoration, enum-key identity, and formatter argument handling.
 
 ## Scope
 
 - Target: TeaVM web build.
-- Affected area: saved/restored game state, level transitions, scene teardown timing, and message-resource formatting.
+- Affected area: saved/restored game state, level transitions, subclass and talent gameplay gates, scene teardown timing, and message-resource formatting.
 - Non-goal: repairing already-corrupted saves. The fixes prevent new bad state and keep load/save paths from crashing, but they do not reconstruct missing objects from old saves.
 
 ## Bug 1: Toxic Gas Disappears From Toxic Gas Rooms
@@ -157,7 +157,67 @@ Focused tests cover:
 - load-level identity checks;
 - canonical enum restore from `Bundle.getEnum(...)`.
 
-## Bug 3: Shard Of Oblivion Info Crashes The Web Build
+## Bug 3: Berserker Rage Does Not Increase After Damage
+
+### Symptom
+
+In the web build, a Berserker could take normal physical damage without the rage value increasing. The hero still appeared to be a Berserker, but the subclass-specific rage gain did not run.
+
+The relevant gameplay path is:
+
+```text
+incoming physical damage
+-> Hero.defenseProc(...)
+-> if Berserker, Buff.affect(hero, Berserk.class).damage(damage)
+```
+
+When the gate failed, the `Berserk` buff was never created or updated, so the UI correctly showed no rage increase.
+
+### Root Cause
+
+This was the same enum-identity class of bug as the stair transition issue, but on `HeroSubClass` instead of `LevelTransition.Type`.
+
+The rage gate used enum identity:
+
+```java
+if (damage > 0 && subClass == HeroSubClass.BERSERKER) {
+    ...
+}
+```
+
+`Hero.subClass` is restored through `Bundle.getEnum(...)`. In TeaVM, restored enum values can have the correct `name()` while still failing identity checks against the generated static enum constants. That means the UI and save data can still say `BERSERKER`, while gameplay code using `== HeroSubClass.BERSERKER` can skip Berserker-only behavior.
+
+The earlier enum audit missed this because it generalized the stair bug only to `LevelTransition.Type`. The correct audit boundary is broader: any enum restored from `Bundle` and then used in gameplay logic should avoid relying solely on identity when TeaVM is a target.
+
+### Fix
+
+`Bundle.getEnum(...)` now first resolves the enum constant by its public static enum field name before falling back to the enum constants array. This makes restored enum values more likely to be the same object used by ordinary code-level constants.
+
+`HeroSubClass` now also exposes a backend-stable matcher:
+
+```java
+HeroSubClass.matches(a, b)
+```
+
+The Berserker rage gate uses that helper, so identity still works on JVM and name equality covers TeaVM-restored enum values. The follow-up audit also moves other important subclass gameplay gates to the same helper.
+
+The enum audit widened the same defensive pattern to other restored gameplay enums:
+
+- `HeroClass.matches(...)` for class-specific talents, item behavior, and UI gates.
+- `HeroSubClass.matches(...)` for subclass-specific combat, plants, cleric spells, champion weapons, and Berserker rage.
+- `Weapon.Augment.matches(...)` and `Armor.Augment.matches(...)` for restored item augmentation behavior.
+- `Char.Alignment.matches(...)` for `Bee` and `Pylon`, the two character types that explicitly restore alignment through `Bundle.getEnum(...)`.
+
+### Regression Coverage
+
+Focused tests cover:
+
+- `HeroSubClass.matches(...)` behavior;
+- restored-Berserker-style rage gating through `Hero.defenseProc(...)`;
+- high-risk subclass gates using name-based comparison rather than raw enum identity;
+- canonical enum restore through `Bundle.getEnum(...)`.
+
+## Bug 4: Shard Of Oblivion Info Crashes The Web Build
 
 ### Symptom
 
@@ -205,6 +265,60 @@ Focused verification:
 ./gradlew :web:buildWebBundle
 ```
 
+## Bug 5: Strongman Talent Shows Points But Does Not Increase Strength
+
+### Symptom
+
+In the web build, a level 20 Berserker could show the tier-3 `Strongman` talent as fully upgraded while the hero info panel still showed the unmodified strength value. The concrete report showed a Berserker at strength 15 with the tier-3 talent pips filled. For a Warrior/Berserker with base strength 15 and three points in `Strongman`, the displayed strength should compute:
+
+```text
+15 + floor(15 * (0.03 + 0.05 * 3)) = 17
+```
+
+The UI could still render the filled talent pips because it iterated the stored talent map directly and passed each existing key/value pair into the talent button. Gameplay logic such as `Hero.STR()` queried the same map by `Talent.STRONGMAN`, and that query returned zero points.
+
+### Root Cause
+
+This was another enum-identity failure, this time for `Talent` keys stored inside `Hero.talents`.
+
+The old lookup logic was identity-only:
+
+```java
+for (Talent f : tier.keySet()) {
+    if (f == talent) return tier.get(f);
+}
+```
+
+That is safe only if every `Talent` reference is the same generated object. In TeaVM, restored or UI-routed enum values can have the same `name()` while failing identity checks. The result was split-brain state:
+
+- UI: displays points from the map entry it already has.
+- Logic: asks for `Talent.STRONGMAN`, fails `==`, and gets zero.
+
+The first enum audit missed this because it focused on enum fields restored directly through `Bundle.getEnum(...)`. `Hero.talents` is different: the enum is used as a map key and is also passed through UI callbacks and metamorphosis replacement maps.
+
+### Fix
+
+`Talent` now has the same backend-stable matcher pattern as class/subclass and transition enums:
+
+```java
+Talent.matches(a, b)
+```
+
+The talent lifecycle now uses name-stable matching for:
+
+- `Hero.pointsInTalent(...)`
+- `Hero.upgradeTalent(...)`
+- `Talent.onTalentUpgraded(...)`
+- class talent replacement through metamorphosis
+- metamorphosis choose/replace UI logic
+- special `HEROIC_ENERGY` title/icon checks
+
+The important behavioral point is that the hero's actual stored map key remains the key that gets updated. We match incoming talent values by name, then write back through the existing key, so the map does not accumulate duplicate name-equivalent keys.
+
+### Regression Coverage
+
+`HeroSubClassTest.strongmanTalentIncreasesStrength` verifies that three points in `Strongman` are readable through `Hero.pointsInTalent(...)` and increase a 15-strength Warrior/Berserker to 17 strength.
+
 ## Related Race Hardening
 
 The gas investigation also exposed a separate web risk: scene teardown, save, or level switch can happen while the actor thread is still processing. That is distinct from the static nested class bug, but it can make transient state look empty during save.
@@ -236,6 +350,7 @@ Run the focused JVM tests:
   --tests com.shatteredpixel.shatteredpixeldungeon.levels.features.LevelTransitionRestoreTest \
   --tests com.shatteredpixel.shatteredpixeldungeon.DungeonSwitchLevelPlacementTest \
   --tests com.shatteredpixel.shatteredpixeldungeon.DungeonLoadLevelIdentityTest \
+  --tests com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroSubClassTest \
   --tests com.shatteredpixel.shatteredpixeldungeon.scenes.GameSceneActorThreadWaitTest \
   --tests com.watabou.noosa.GameSceneSwitchReadinessTest \
   --tests com.shatteredpixel.shatteredpixeldungeon.plants.PlantBoundsTest \
