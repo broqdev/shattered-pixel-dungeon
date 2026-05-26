@@ -34,6 +34,15 @@ public class Reflection {
 	public static boolean isStatic( Class cls ){
 		return ClassReflection.isStaticClass(cls);
 	}
+
+	public static boolean hasDefaultConstructor( Class cls ){
+		try {
+			ClassReflection.getConstructor(cls);
+			return true;
+		} catch (Exception e) {
+			return false;
+		}
+	}
 	
 	public static <T> T newInstance( Class<T> cls ){
 		try {

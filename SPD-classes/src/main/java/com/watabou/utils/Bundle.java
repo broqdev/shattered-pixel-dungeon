@@ -146,9 +146,9 @@ public class Bundle {
 		}
 
 		Class<?> cl = Reflection.forName( clName );
-		//Skip none-static inner classes as they can't be instantiated through bundle restoring
-		//Classes which make use of none-static inner classes must manage instantiation manually
-		if (cl != null && (!Reflection.isMemberClass(cl) || Reflection.isStatic(cl))) {
+		// Some backends misreport static nested classes as non-static member classes,
+		// so rely on the constructor shape needed for automatic restore instead.
+		if (cl != null && Reflection.hasDefaultConstructor(cl)) {
 			Bundlable object = (Bundlable) Reflection.newInstance(cl);
 			if (object != null) {
 				object.restoreFromBundle(this);
@@ -165,7 +165,13 @@ public class Bundle {
 
 	public <E extends Enum<E>> E getEnum( String key, Class<E> enumClass ) {
 		try {
-			return Enum.valueOf( enumClass, data.getString( key ) );
+			String name = data.getString( key );
+			for (E value : enumClass.getEnumConstants()) {
+				if (value.name().equals(name)) {
+					return value;
+				}
+			}
+			throw new IllegalArgumentException(name);
 		} catch (JSONException e) {
 			Game.reportException(e);
 			return enumClass.getEnumConstants()[0];
@@ -365,10 +371,7 @@ public class Bundle {
 	public void put( String key, Bundlable object ) {
 		if (object != null) {
 			try {
-				Bundle bundle = new Bundle();
-				bundle.put( CLASS_NAME, object.getClass().getName() );
-				object.storeInBundle( bundle );
-				data.put( key, bundle.data );
+				data.put( key, putBundlable( object ).data );
 			} catch (JSONException e) {
 				Game.reportException(e);
 			}
@@ -460,16 +463,8 @@ public class Bundle {
 	public void put( String key, Collection<? extends Bundlable> collection ) {
 		JSONArray array = new JSONArray();
 		for (Bundlable object : collection) {
-			//Skip none-static inner classes as they can't be instantiated through bundle restoring
-			//Classes which make use of none-static inner classes must manage instantiation manually
-			if (object != null) {
-				Class cl = object.getClass();
-				if ((!Reflection.isMemberClass(cl) || Reflection.isStatic(cl))) {
-					Bundle bundle = new Bundle();
-					bundle.put(CLASS_NAME, cl.getName());
-					object.storeInBundle(bundle);
-					array.put(bundle.data);
-				}
+			if (object != null && Reflection.hasDefaultConstructor(object.getClass())) {
+				array.put(putBundlable(object).data);
 			}
 		}
 		try {
@@ -477,6 +472,13 @@ public class Bundle {
 		} catch (JSONException e) {
 			Game.reportException(e);
 		}
+	}
+
+	private static Bundle putBundlable( Bundlable object ) {
+		Bundle bundle = new Bundle();
+		bundle.put(CLASS_NAME, object.getClass().getName());
+		object.storeInBundle(bundle);
+		return bundle;
 	}
 
 	//useful to turn this off for save data debugging.

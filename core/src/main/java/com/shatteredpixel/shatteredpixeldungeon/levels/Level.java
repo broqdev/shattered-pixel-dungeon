@@ -729,12 +729,9 @@ public abstract class Level implements Bundlable {
 		}
 		for (LevelTransition transition : transitions){
 			//if we don't specify a type, prefer to return any entrance
-			if (type == null &&
-					(transition.type == LevelTransition.Type.REGULAR_ENTRANCE
-							|| transition.type == LevelTransition.Type.BRANCH_ENTRANCE
-							|| transition.type == LevelTransition.Type.SURFACE)){
+			if (type == null && LevelTransition.isEntrance(transition.type)){
 				return transition;
-			} else if (transition.type == type){
+			} else if (LevelTransition.typeMatches(transition.type, type)){
 				return transition;
 			}
 		}
@@ -746,7 +743,7 @@ public abstract class Level implements Bundlable {
 			return null;
 		}
 		for (LevelTransition transition : transitions) {
-			if (transition.type == type) {
+			if (LevelTransition.typeMatches(transition.type, type)) {
 				return transition;
 			}
 		}
@@ -769,16 +766,15 @@ public abstract class Level implements Bundlable {
 			switch (map[i]) {
 				case Terrain.ENTRANCE:
 				case Terrain.ENTRANCE_SP:
-					if (type == LevelTransition.Type.REGULAR_ENTRANCE
-							|| type == LevelTransition.Type.BRANCH_ENTRANCE) {
+					if (LevelTransition.typeMatches(type, LevelTransition.Type.REGULAR_ENTRANCE)
+							|| LevelTransition.typeMatches(type, LevelTransition.Type.BRANCH_ENTRANCE)) {
 						return i;
 					}
 					break;
 				case Terrain.EXIT:
 				case Terrain.LOCKED_EXIT:
 				case Terrain.UNLOCKED_EXIT:
-					if (type == LevelTransition.Type.REGULAR_EXIT
-							|| type == LevelTransition.Type.BRANCH_EXIT) {
+					if (LevelTransition.isExit(type)) {
 						return i;
 					}
 					break;
@@ -809,8 +805,7 @@ public abstract class Level implements Bundlable {
 
 		beforeTransition();
 		InterlevelScene.curTransition = transition;
-		if (transition.type == LevelTransition.Type.REGULAR_EXIT
-				|| transition.type == LevelTransition.Type.BRANCH_EXIT) {
+		if (LevelTransition.isExit(transition.type)) {
 			InterlevelScene.mode = InterlevelScene.Mode.DESCEND;
 		} else {
 			InterlevelScene.mode = InterlevelScene.Mode.ASCEND;
