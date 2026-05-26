@@ -361,29 +361,19 @@ public class Hero extends Char {
 	public int pointsInTalent( Talent talent ){
 		for (LinkedHashMap<Talent, Integer> tier : talents){
 			for (Talent f : tier.keySet()){
-				if (Talent.matches(f, talent)) return tier.get(f);
+				if (f == talent) return tier.get(f);
 			}
 		}
 		return 0;
 	}
 
 	public void upgradeTalent( Talent talent ){
-		boolean upgraded = false;
-		Talent upgradedTalent = talent;
 		for (LinkedHashMap<Talent, Integer> tier : talents){
 			for (Talent f : tier.keySet()){
-				if (Talent.matches(f, talent)) {
-					tier.put(f, tier.get(f)+1);
-					upgraded = true;
-					upgradedTalent = f;
-					break;
-				}
+				if (f == talent) tier.put(talent, tier.get(talent)+1);
 			}
-			if (upgraded) break;
 		}
-		if (upgraded) {
-			Talent.onTalentUpgraded(this, upgradedTalent);
-		}
+		Talent.onTalentUpgraded(this, talent);
 	}
 
 	public int talentPointsSpent(int tier){
@@ -396,7 +386,7 @@ public class Hero extends Char {
 
 	public int talentPointsAvailable(int tier){
 		if (lvl < (Talent.tierLevelThresholds[tier] - 1)
-			|| (tier == 3 && HeroSubClass.matches(subClass, HeroSubClass.NONE))
+			|| (tier == 3 && subClass == HeroSubClass.NONE)
 			|| (tier == 4 && armorAbility == null)) {
 			return 0;
 		} else if (lvl >= Talent.tierLevelThresholds[tier+1]){
@@ -408,7 +398,7 @@ public class Hero extends Char {
 
 	public int bonusTalentPoints(int tier){
 		if (lvl < (Talent.tierLevelThresholds[tier]-1)
-				|| (tier == 3 && HeroSubClass.matches(subClass, HeroSubClass.NONE))
+				|| (tier == 3 && subClass == HeroSubClass.NONE)
 				|| (tier == 4 && armorAbility == null)) {
 			return 0;
 		} else if (buff(PotionOfDivineInspiration.DivineInspirationTracker.class) != null
@@ -420,7 +410,7 @@ public class Hero extends Char {
 	}
 	
 	public String className() {
-		return subClass == null || HeroSubClass.matches(subClass, HeroSubClass.NONE) ? heroClass.title() : subClass.title();
+		return subClass == null || subClass == HeroSubClass.NONE ? heroClass.title() : subClass.title();
 	}
 
 	@Override
@@ -485,11 +475,11 @@ public class Hero extends Char {
 		Invisibility.dispel();
 		belongings.thrownWeapon = null;
 
-		if (hit && HeroSubClass.matches(subClass, HeroSubClass.GLADIATOR) && wasEnemy){
+		if (hit && subClass == HeroSubClass.GLADIATOR && wasEnemy){
 			Buff.affect( this, Combo.class ).hit( enemy );
 		}
 
-		if (hit && HeroClass.matches(heroClass, HeroClass.DUELIST) && wasEnemy){
+		if (hit && heroClass == HeroClass.DUELIST && wasEnemy){
 			Buff.affect( this, Sai.ComboStrikeTracker.class).addHit();
 		}
 
@@ -525,7 +515,7 @@ public class Hero extends Char {
 					&& belongings.abilityWeapon != wep && buff(MonkEnergy.MonkAbility.UnarmedAbilityTracker.class) == null){
 
 				//non-duelist benefit for precise assault, can stack with liquid agility
-				if (!HeroClass.matches(heroClass, HeroClass.DUELIST)) {
+				if (heroClass != HeroClass.DUELIST) {
 					//persistent +10%/20%/30% ACC for other heroes
 					accuracy *= 1f + 0.1f * pointsInTalent(Talent.PRECISE_ASSAULT);
 				}
@@ -695,7 +685,7 @@ public class Hero extends Char {
 			Sample.INSTANCE.play(Assets.Sounds.HIT_STRONG, 0.75f, 1.2f);
 		}
 
-		if (!HeroClass.matches(heroClass, HeroClass.DUELIST)
+		if (heroClass != HeroClass.DUELIST
 				&& hasTalent(Talent.WEAPON_RECHARGING)
 				&& (buff(Recharging.class) != null || buff(ArtifactRecharge.class) != null)){
 			dmg = Math.round(dmg * 1.025f + (.025f*pointsInTalent(Talent.WEAPON_RECHARGING)));
@@ -979,7 +969,7 @@ public class Hero extends Char {
 				//standing in high grass
 				(Dungeon.level.map[pos] == Terrain.HIGH_GRASS ||
 				//standing in furrowed grass and not huntress
-				(!HeroClass.matches(heroClass, HeroClass.HUNTRESS) && Dungeon.level.map[pos] == Terrain.FURROWED_GRASS) ||
+				(heroClass != HeroClass.HUNTRESS && Dungeon.level.map[pos] == Terrain.FURROWED_GRASS) ||
 				//standing on a plant
 				Dungeon.level.plants.get(pos) != null);
 	}
@@ -1428,7 +1418,7 @@ public class Hero extends Char {
 
 		if (attackTarget.isAlive() && canAttack(attackTarget) && attackTarget.invisible == 0) {
 
-			if (!HeroClass.matches(heroClass, HeroClass.DUELIST)
+			if (heroClass != HeroClass.DUELIST
 					&& hasTalent(Talent.AGGRESSIVE_BARRIER)
 					&& buff(Talent.AggressiveBarrierCooldown.class) == null
 					&& (HP / (float)HT) <= 0.5f){
@@ -1502,7 +1492,7 @@ public class Hero extends Char {
 			}
 			if (!wasEnemy || enemy.alignment == Alignment.ENEMY) {
 				if (buff(HolyWeapon.HolyWepBuff.class) != null) {
-					int dmg = HeroSubClass.matches(subClass, HeroSubClass.PALADIN) ? 6 : 2;
+					int dmg = subClass == HeroSubClass.PALADIN ? 6 : 2;
 					enemy.damage(Math.round(dmg * Weapon.Enchantment.genericProcChanceMultiplier(this)), HolyWeapon.INSTANCE);
 				}
 				if (buff(Smite.SmiteTracker.class) != null) {
@@ -1547,7 +1537,7 @@ public class Hero extends Char {
 	@Override
 	public int defenseProc( Char enemy, int damage ) {
 		
-		if (damage > 0 && HeroSubClass.matches(subClass, HeroSubClass.BERSERKER)){
+		if (damage > 0 && subClass == HeroSubClass.BERSERKER){
 			Berserk berserk = Buff.affect(this, Berserk.class);
 			berserk.damage(damage);
 		}
@@ -1560,7 +1550,7 @@ public class Hero extends Char {
 				damage = buff(BodyForm.BodyFormBuff.class).glyph().proc(new ClothArmor(), enemy, this, damage);
 			}
 			if (buff(HolyWard.HolyArmBuff.class) != null){
-				int blocking = HeroSubClass.matches(subClass, HeroSubClass.PALADIN) ? 3 : 1;
+				int blocking = subClass == HeroSubClass.PALADIN ? 3 : 1;
 				damage -= Math.round(blocking * Armor.Glyph.genericProcChanceMultiplier(enemy));
 			}
 		}
@@ -1863,7 +1853,7 @@ public class Hero extends Char {
 				buff(GreaterHaste.class).spendMove();
 			}
 
-			if (HeroSubClass.matches(subClass, HeroSubClass.FREERUNNER)){
+			if (subClass == HeroSubClass.FREERUNNER){
 				Buff.affect(this, Momentum.class).gainStack();
 			}
 			
@@ -1960,7 +1950,7 @@ public class Hero extends Char {
 				&& (visibleEnemies.size() == 0 || cell == pos)
 				&& !Dungeon.level.locked
 				&& !Dungeon.level.plants.containsKey(cell)
-				&& (Dungeon.depth < 26 || LevelTransition.typeMatches(Dungeon.level.getTransition(cell).type, LevelTransition.Type.REGULAR_ENTRANCE)) ) {
+				&& (Dungeon.depth < 26 || Dungeon.level.getTransition(cell).type == LevelTransition.Type.REGULAR_ENTRANCE) ) {
 
 			curAction = new HeroAction.LvlTransition( cell );
 			
@@ -2335,11 +2325,11 @@ public class Hero extends Char {
 		Invisibility.dispel();
 		spend( attackDelay() );
 
-		if (hit && HeroSubClass.matches(subClass, HeroSubClass.GLADIATOR) && wasEnemy){
+		if (hit && subClass == HeroSubClass.GLADIATOR && wasEnemy){
 			Buff.affect( this, Combo.class ).hit(attackTarget);
 		}
 
-		if (hit && HeroClass.matches(heroClass, HeroClass.DUELIST) && wasEnemy){
+		if (hit && heroClass == HeroClass.DUELIST && wasEnemy){
 			Buff.affect( this, Sai.ComboStrikeTracker.class).addHit();
 		}
 
@@ -2457,7 +2447,7 @@ public class Hero extends Char {
 		boolean smthFound = false;
 
 		boolean circular = pointsInTalent(Talent.WIDE_SEARCH) == 1;
-		int distance = HeroClass.matches(heroClass, HeroClass.ROGUE) ? 2 : 1;
+		int distance = heroClass == HeroClass.ROGUE ? 2 : 1;
 		if (hasTalent(Talent.WIDE_SEARCH)) distance++;
 		
 		boolean foresight = buff(Foresight.class) != null;

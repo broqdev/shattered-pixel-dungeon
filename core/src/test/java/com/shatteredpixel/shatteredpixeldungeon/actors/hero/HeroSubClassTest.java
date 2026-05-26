@@ -23,14 +23,14 @@ package com.shatteredpixel.shatteredpixeldungeon.actors.hero;
 
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Berserk;
+import com.watabou.utils.Bundle;
 
 import org.junit.After;
 import org.junit.Test;
 
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertSame;
 
 public class HeroSubClassTest {
 
@@ -40,10 +40,11 @@ public class HeroSubClassTest {
 	}
 
 	@Test
-	public void matchesUsesEnumNameForBackendStableComparison() {
-		assertTrue(HeroSubClass.matches(HeroSubClass.BERSERKER, HeroSubClass.BERSERKER));
-		assertFalse(HeroSubClass.matches(HeroSubClass.BERSERKER, HeroSubClass.GLADIATOR));
-		assertFalse(HeroSubClass.matches(null, HeroSubClass.BERSERKER));
+	public void bundleRestoresCanonicalHeroSubclass() {
+		Bundle bundle = new Bundle();
+		bundle.put("subclass", HeroSubClass.BERSERKER);
+
+		assertSame(HeroSubClass.BERSERKER, bundle.getEnum("subclass", HeroSubClass.class));
 	}
 
 	@Test
@@ -69,6 +70,24 @@ public class HeroSubClassTest {
 		hero.upgradeTalent(Talent.STRONGMAN);
 		hero.upgradeTalent(Talent.STRONGMAN);
 		hero.upgradeTalent(Talent.STRONGMAN);
+
+		assertEquals(3, hero.pointsInTalent(Talent.STRONGMAN));
+		assertEquals(17, hero.STR());
+	}
+
+	@Test
+	public void restoredStrongmanPointsUseCanonicalTalentKey() {
+		Hero hero = new Hero();
+		hero.heroClass = HeroClass.WARRIOR;
+		hero.subClass = HeroSubClass.BERSERKER;
+		hero.STR = 15;
+
+		Bundle bundle = new Bundle();
+		Bundle tier3 = new Bundle();
+		tier3.put(Talent.STRONGMAN.name(), 3);
+		bundle.put("talents_tier_3", tier3);
+
+		Talent.restoreTalentsFromBundle(bundle, hero);
 
 		assertEquals(3, hero.pointsInTalent(Talent.STRONGMAN));
 		assertEquals(17, hero.STR());

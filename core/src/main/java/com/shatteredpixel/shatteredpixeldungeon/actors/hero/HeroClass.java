@@ -351,8 +351,4 @@ public enum HeroClass {
 		return shortDesc() + "\n\n" + Messages.get(HeroClass.class, name()+"_unlock");
 	}
 
-	public static boolean matches(HeroClass a, HeroClass b) {
-		return a == b || (a != null && b != null && a.name().equals(b.name()));
-	}
-
 }

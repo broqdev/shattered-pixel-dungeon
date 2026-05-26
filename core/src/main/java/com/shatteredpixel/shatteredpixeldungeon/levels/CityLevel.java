@@ -145,7 +145,7 @@ public class CityLevel extends RegularLevel {
 
 	@Override
 	public boolean activateTransition(Hero hero, LevelTransition transition) {
-		if (LevelTransition.typeMatches(transition.type, LevelTransition.Type.BRANCH_EXIT)) {
+		if (transition.type == LevelTransition.Type.BRANCH_EXIT) {
 
 			if (hero.buff(AscensionChallenge.class) != null
 					|| hero.buff(LostInventory.class) != null){

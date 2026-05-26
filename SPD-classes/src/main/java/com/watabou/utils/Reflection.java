@@ -52,6 +52,25 @@ public class Reflection {
 		return !isMemberClass(cls) || isStatic(cls) || newInstanceQuiet(cls) != null;
 	}
 
+	@SuppressWarnings("unchecked")
+	public static <E extends Enum<E>> E canonicalEnum( Class<E> enumClass, String name ){
+		try {
+			Object value = ClassReflection.getField(enumClass, name).get(null);
+			if (enumClass.isInstance(value)) {
+				return (E)value;
+			}
+		} catch (Exception ignored) {
+			// Fall back to the enum constants array below.
+		}
+
+		for (E value : enumClass.getEnumConstants()) {
+			if (value.name().equals(name)) {
+				return value;
+			}
+		}
+		throw new IllegalArgumentException(name);
+	}
+
 	public static <T> T newInstance( Class<T> cls ){
 		try {
 			return ClassReflection.newInstance(cls);

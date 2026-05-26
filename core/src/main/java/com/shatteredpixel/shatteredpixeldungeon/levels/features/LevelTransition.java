@@ -67,10 +67,10 @@ public class LevelTransition extends Rect implements Bundlable {
 		Point p = level.cellToPoint(cell);
 		set(p.x, p.y, p.x, p.y);
 		this.type = type;
-		if (typeMatches(type, Type.REGULAR_EXIT)) {
+		if (type == Type.REGULAR_EXIT) {
 			destDepth = Dungeon.depth+1;
 			destBranch = Dungeon.branch;
-		} else if (typeMatches(type, Type.SURFACE)) {
+		} else if (type == Type.SURFACE) {
 			destDepth = 0;
 			destBranch = 0;
 		} else {
@@ -84,32 +84,28 @@ public class LevelTransition extends Rect implements Bundlable {
 		if (type == null) {
 			return null;
 		}
-		if (typeMatches(type, Type.REGULAR_ENTRANCE)) {
+		if (type == Type.REGULAR_ENTRANCE) {
 			return Type.REGULAR_EXIT;
-		} else if (typeMatches(type, Type.REGULAR_EXIT)) {
+		} else if (type == Type.REGULAR_EXIT) {
 			return Type.REGULAR_ENTRANCE;
-		} else if (typeMatches(type, Type.BRANCH_ENTRANCE)) {
+		} else if (type == Type.BRANCH_ENTRANCE) {
 			return Type.BRANCH_EXIT;
-		} else if (typeMatches(type, Type.BRANCH_EXIT)) {
+		} else if (type == Type.BRANCH_EXIT) {
 			return Type.BRANCH_ENTRANCE;
 		} else {
 			return null;
 		}
 	}
 
-	public static boolean typeMatches(Type a, Type b) {
-		return a == b || (a != null && b != null && a.name().equals(b.name()));
-	}
-
 	public static boolean isEntrance(Type type) {
-		return typeMatches(type, Type.REGULAR_ENTRANCE)
-				|| typeMatches(type, Type.BRANCH_ENTRANCE)
-				|| typeMatches(type, Type.SURFACE);
+		return type == Type.REGULAR_ENTRANCE
+				|| type == Type.BRANCH_ENTRANCE
+				|| type == Type.SURFACE;
 	}
 
 	public static boolean isExit(Type type) {
-		return typeMatches(type, Type.REGULAR_EXIT)
-				|| typeMatches(type, Type.BRANCH_EXIT);
+		return type == Type.REGULAR_EXIT
+				|| type == Type.BRANCH_EXIT;
 	}
 
 	//note that the center cell isn't always the actual center.

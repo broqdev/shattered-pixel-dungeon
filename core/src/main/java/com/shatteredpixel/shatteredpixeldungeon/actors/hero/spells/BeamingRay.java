@@ -127,7 +127,7 @@ public class BeamingRay extends TargetedClericSpell {
 		Char chTarget = null;
 		if (Actor.findChar(target) != null && Actor.findChar(target).alignment == Char.Alignment.ENEMY){
 			chTarget = Actor.findChar(target);
-			if (HeroSubClass.matches(hero.subClass, HeroSubClass.PRIEST)){
+			if (hero.subClass == HeroSubClass.PRIEST){
 				Buff.affect(chTarget, GuidingLight.Illuminated.class);
 			}
 		}

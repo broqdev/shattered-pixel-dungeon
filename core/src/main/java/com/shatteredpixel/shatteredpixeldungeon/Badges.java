@@ -44,6 +44,7 @@ import com.shatteredpixel.shatteredpixeldungeon.scenes.PixelScene;
 import com.shatteredpixel.shatteredpixeldungeon.utils.GLog;
 import com.watabou.utils.Bundle;
 import com.watabou.utils.FileUtils;
+import com.watabou.utils.Reflection;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -280,7 +281,7 @@ public class Badges {
 					names[i] = renamedBadges.get(names[i]);
 				}
 				if (!removedBadges.contains(names[i])){
-					badges.add( Badge.valueOf( names[i] ) );
+					badges.add( Reflection.canonicalEnum( Badge.class, names[i] ) );
 				}
 			} catch (Exception e) {
 				ShatteredPixelDungeon.reportException(e);
@@ -1383,7 +1384,7 @@ public class Badges {
 		} else if (badge == Badge.BOSS_SLAIN_3_ALL_SUBCLASSES){
 
 			for (HeroSubClass cls : HeroSubClass.values()){
-				if (HeroSubClass.matches(cls, HeroSubClass.NONE)) continue;
+				if (cls == HeroSubClass.NONE) continue;
 				result += "\n";
 				if (isUnlocked(thirdBossSubclassBadges.get(cls)))   result += "_" + Messages.titleCase(cls.title()) + "_";
 				else                                                result += Messages.titleCase(cls.title()) ;

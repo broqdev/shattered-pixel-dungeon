@@ -283,7 +283,7 @@ public class Notes {
 		@Override
 		public void restoreFromBundle(Bundle bundle) {
 			super.restoreFromBundle(bundle);
-			landmark = Landmark.valueOf(bundle.getString(LANDMARK));
+			landmark = Reflection.canonicalEnum(Landmark.class, bundle.getString(LANDMARK));
 		}
 		
 		@Override

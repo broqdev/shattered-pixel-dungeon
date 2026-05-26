@@ -731,7 +731,7 @@ public abstract class Level implements Bundlable {
 			//if we don't specify a type, prefer to return any entrance
 			if (type == null && LevelTransition.isEntrance(transition.type)){
 				return transition;
-			} else if (LevelTransition.typeMatches(transition.type, type)){
+			} else if (transition.type == type){
 				return transition;
 			}
 		}
@@ -743,7 +743,7 @@ public abstract class Level implements Bundlable {
 			return null;
 		}
 		for (LevelTransition transition : transitions) {
-			if (LevelTransition.typeMatches(transition.type, type)) {
+			if (transition.type == type) {
 				return transition;
 			}
 		}
@@ -766,8 +766,8 @@ public abstract class Level implements Bundlable {
 			switch (map[i]) {
 				case Terrain.ENTRANCE:
 				case Terrain.ENTRANCE_SP:
-					if (LevelTransition.typeMatches(type, LevelTransition.Type.REGULAR_ENTRANCE)
-							|| LevelTransition.typeMatches(type, LevelTransition.Type.BRANCH_ENTRANCE)) {
+					if (type == LevelTransition.Type.REGULAR_ENTRANCE
+							|| type == LevelTransition.Type.BRANCH_ENTRANCE) {
 						return i;
 					}
 					break;
@@ -1542,7 +1542,7 @@ public abstract class Level implements Bundlable {
 
 			//grass is see-through by some specific entities, but not during the fungi quest
 			if (!(Dungeon.level instanceof  MiningLevel) || Blacksmith.Quest.Type() != Blacksmith.Quest.FUNGI){
-				if ((c instanceof Hero && HeroSubClass.matches(((Hero) c).subClass, HeroSubClass.WARDEN))
+				if ((c instanceof Hero && ((Hero) c).subClass == HeroSubClass.WARDEN)
 						|| c instanceof YogFist.SoiledFist || c instanceof GnollGeomancer) {
 					if (blocking == null) {
 						System.arraycopy(Dungeon.level.losBlocking, 0, modifiableBlocking, 0, modifiableBlocking.length);
@@ -1660,7 +1660,7 @@ public abstract class Level implements Bundlable {
 					mindVisRange = 1+((Hero) c).pointsInTalent(Talent.HEIGHTENED_SENSES);
 				}
 				if (c.buff(DivineSense.DivineSenseTracker.class) != null){
-					if (HeroClass.matches(((Hero) c).heroClass, HeroClass.CLERIC)){
+					if (((Hero) c).heroClass == HeroClass.CLERIC){
 						mindVisRange = 4+4*((Hero) c).pointsInTalent(Talent.DIVINE_SENSE);
 					} else {
 						mindVisRange = 1+2*((Hero) c).pointsInTalent(Talent.DIVINE_SENSE);

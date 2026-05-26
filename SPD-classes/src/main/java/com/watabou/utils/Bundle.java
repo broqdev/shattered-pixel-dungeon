@@ -21,8 +21,6 @@
 
 package com.watabou.utils;
 
-import com.badlogic.gdx.utils.reflect.ClassReflection;
-import com.badlogic.gdx.utils.reflect.ReflectionException;
 import com.watabou.noosa.Game;
 
 import org.json.JSONArray;
@@ -165,8 +163,7 @@ public class Bundle {
 
 	public <E extends Enum<E>> E getEnum( String key, Class<E> enumClass ) {
 		try {
-			String name = data.getString( key );
-			return enumConstant(name, enumClass);
+			return Reflection.canonicalEnum(enumClass, data.getString(key));
 		} catch (JSONException e) {
 			Game.reportException(e);
 			return enumClass.getEnumConstants()[0];
@@ -174,25 +171,6 @@ public class Bundle {
 			Game.reportException(e);
 			return enumClass.getEnumConstants()[0];
 		}
-	}
-
-	@SuppressWarnings("unchecked")
-	private static <E extends Enum<E>> E enumConstant( String name, Class<E> enumClass ) {
-		try {
-			Object value = ClassReflection.getField(enumClass, name).get(null);
-			if (enumClass.isInstance(value)) {
-				return (E)value;
-			}
-		} catch (ReflectionException ignored) {
-			// Fall back to the enum constants array below.
-		}
-
-		for (E value : enumClass.getEnumConstants()) {
-			if (value.name().equals(name)) {
-				return value;
-			}
-		}
-		throw new IllegalArgumentException(name);
 	}
 
 	public int[] getIntArray( String key ) {

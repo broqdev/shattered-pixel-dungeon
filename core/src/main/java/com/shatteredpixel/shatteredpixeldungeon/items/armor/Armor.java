@@ -109,10 +109,6 @@ public class Armor extends EquipableItem {
 		public int defenseFactor(int level){
 			return Math.round((2 + level) * defenceFactor);
 		}
-
-		public static boolean matches(Augment a, Augment b) {
-			return a == b || (a != null && b != null && a.name().equals(b.name()));
-		}
 	}
 	
 	public Augment augment = Augment.NONE;
@@ -236,7 +232,7 @@ public class Armor extends EquipableItem {
 	public boolean doEquip( Hero hero ) {
 
 		// 15/25% chance
-		if (!HeroClass.matches(hero.heroClass, HeroClass.CLERIC) && hero.hasTalent(Talent.HOLY_INTUITION)
+		if (hero.heroClass != HeroClass.CLERIC && hero.hasTalent(Talent.HOLY_INTUITION)
 				&& cursed && !cursedKnown
 				&& Random.Int(20) < 1 + 2*hero.pointsInTalent(Talent.HOLY_INTUITION)){
 			cursedKnown = true;
@@ -262,7 +258,7 @@ public class Armor extends EquipableItem {
 			Talent.onItemEquipped(hero, this);
 			hero.spend( timeToEquip( hero ) );
 
-			if (HeroClass.matches(Dungeon.hero.heroClass, HeroClass.WARRIOR) && checkSeal() == null){
+			if (Dungeon.hero.heroClass == HeroClass.WARRIOR && checkSeal() == null){
 				BrokenSeal seal = oldArmor != null ? oldArmor.checkSeal() : null;
 				if (seal != null && (!cursed || (seal.getGlyph() != null && seal.getGlyph().curse()))){
 
@@ -481,7 +477,7 @@ public class Armor extends EquipableItem {
 
 				//the chance from +4/5, and then +6 can be set to 0% with metamorphed runic transference
 				int lossChanceStart = 4;
-				if (Dungeon.hero != null && !HeroClass.matches(Dungeon.hero.heroClass, HeroClass.WARRIOR) && Dungeon.hero.hasTalent(Talent.RUNIC_TRANSFERENCE)){
+				if (Dungeon.hero != null && Dungeon.hero.heroClass != HeroClass.WARRIOR && Dungeon.hero.hasTalent(Talent.RUNIC_TRANSFERENCE)){
 					lossChanceStart += 1+Dungeon.hero.pointsInTalent(Talent.RUNIC_TRANSFERENCE);
 				}
 
@@ -515,13 +511,13 @@ public class Armor extends EquipableItem {
 			if (defender instanceof Hero && isEquipped((Hero) defender)
 					&& defender.buff(HolyWard.HolyArmBuff.class) != null){
 				if (glyph != null &&
-						(HeroSubClass.matches(((Hero) defender).subClass, HeroSubClass.PALADIN) || hasCurseGlyph())){
+						(((Hero) defender).subClass == HeroSubClass.PALADIN || hasCurseGlyph())){
 					damage = glyph.proc( this, attacker, defender, damage );
 				}
 				if (trinityGlyph != null){
 					damage = trinityGlyph.proc( this, attacker, defender, damage );
 				}
-				int blocking = HeroSubClass.matches(((Hero) defender).subClass, HeroSubClass.PALADIN) ? 3 : 1;
+				int blocking = ((Hero) defender).subClass == HeroSubClass.PALADIN ? 3 : 1;
 				damage -= Math.round(blocking * Glyph.genericProcChanceMultiplier(defender));
 
 			} else {
@@ -536,7 +532,7 @@ public class Armor extends EquipableItem {
 						&& Dungeon.hero.buff(AuraOfProtection.AuraBuff.class) != null
 						&& (Dungeon.level.distance(defender.pos, Dungeon.hero.pos) <= 2 || defender.buff(LifeLinkSpell.LifeLinkSpellBuff.class) != null)
 						&& Dungeon.hero.buff(HolyWard.HolyArmBuff.class) != null) {
-					int blocking = HeroSubClass.matches(Dungeon.hero.subClass, HeroSubClass.PALADIN) ? 3 : 1;
+					int blocking = Dungeon.hero.subClass == HeroSubClass.PALADIN ? 3 : 1;
 					damage -= Math.round(blocking * Glyph.genericProcChanceMultiplier(defender));
 				}
 			}
@@ -576,7 +572,7 @@ public class Armor extends EquipableItem {
 	@Override
 	public String name() {
 		if (isEquipped(Dungeon.hero) && !hasCurseGlyph() && Dungeon.hero.buff(HolyWard.HolyArmBuff.class) != null
-			&& (!HeroSubClass.matches(Dungeon.hero.subClass, HeroSubClass.PALADIN) || glyph == null)){
+			&& (Dungeon.hero.subClass != HeroSubClass.PALADIN || glyph == null)){
 				return Messages.get(HolyWard.class, "glyph_name", super.name());
 			} else {
 				return glyph != null && (cursedKnown || !glyph.curse()) ? glyph.name( super.name() ) : super.name();
@@ -614,7 +610,7 @@ public class Armor extends EquipableItem {
 		}
 
 		if (isEquipped(Dungeon.hero) && !hasCurseGlyph() && Dungeon.hero.buff(HolyWard.HolyArmBuff.class) != null
-				&& (!HeroSubClass.matches(Dungeon.hero.subClass, HeroSubClass.PALADIN) || glyph == null)){
+				&& (Dungeon.hero.subClass != HeroSubClass.PALADIN || glyph == null)){
 			info += "\n\n" + Messages.capitalize(Messages.get(Armor.class, "inscribed", Messages.get(HolyWard.class, "glyph_name", Messages.get(Glyph.class, "glyph"))));
 			info += " " + Messages.get(HolyWard.class, "glyph_desc");
 		} else if (glyph != null  && (cursedKnown || !glyph.curse())) {
@@ -759,7 +755,7 @@ public class Armor extends EquipableItem {
 				&& owner instanceof Hero
 				&& isEquipped((Hero) owner)
 				&& owner.buff(HolyWard.HolyArmBuff.class) != null
-				&& !HeroSubClass.matches(((Hero) owner).subClass, HeroSubClass.PALADIN)){
+				&& ((Hero) owner).subClass != HeroSubClass.PALADIN){
 			return false;
 		} else if (owner.buff(BodyForm.BodyFormBuff.class) != null
 				&& owner.buff(BodyForm.BodyFormBuff.class).glyph() != null
@@ -786,7 +782,7 @@ public class Armor extends EquipableItem {
 	@Override
 	public ItemSprite.Glowing glowing() {
 		if (isEquipped(Dungeon.hero) && !hasCurseGlyph() && Dungeon.hero.buff(HolyWard.HolyArmBuff.class) != null
-				&& (!HeroSubClass.matches(Dungeon.hero.subClass, HeroSubClass.PALADIN) || glyph == null)){
+				&& (Dungeon.hero.subClass != HeroSubClass.PALADIN || glyph == null)){
 			return HOLY;
 		} else {
 			return glyph != null && (cursedKnown || !glyph.curse()) ? glyph.glowing() : null;

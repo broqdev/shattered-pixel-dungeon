@@ -350,7 +350,7 @@ public class SpiritBow extends Weapon {
 		
 		@Override
 		public float accuracyFactor(Char owner, Char target) {
-			if (sniperSpecial && Augment.matches(SpiritBow.this.augment, Augment.DAMAGE)){
+			if (sniperSpecial && SpiritBow.this.augment == Augment.DAMAGE){
 				return Float.POSITIVE_INFINITY;
 			} else {
 				return super.accuracyFactor(owner, target);
@@ -372,7 +372,7 @@ public class SpiritBow extends Weapon {
 				if (!curUser.shoot( enemy, this )) {
 					Splash.at(cell, 0xCC99FFFF, 1);
 				}
-				if (sniperSpecial && !Augment.matches(SpiritBow.this.augment, Augment.SPEED)) sniperSpecial = false;
+				if (sniperSpecial && SpiritBow.this.augment != Augment.SPEED) sniperSpecial = false;
 			}
 		}
 
@@ -393,7 +393,7 @@ public class SpiritBow extends Weapon {
 		public void cast(final Hero user, final int dst) {
 			final int cell = throwPos( user, dst );
 			SpiritBow.this.targetPos = cell;
-			if (sniperSpecial && Augment.matches(SpiritBow.this.augment, Augment.SPEED)){
+			if (sniperSpecial && SpiritBow.this.augment == Augment.SPEED){
 				if (flurryCount == -1) flurryCount = 3;
 				
 				final Char enemy = Actor.findChar( cell );

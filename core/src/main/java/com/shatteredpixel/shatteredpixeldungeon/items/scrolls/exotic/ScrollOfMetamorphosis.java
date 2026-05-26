@@ -218,11 +218,11 @@ public class ScrollOfMetamorphosis extends ExoticScroll {
 				Set<Talent> clsTalentsAtTier = clsTalents.get(tier-1).keySet();
 				boolean replacingIsInSet = false;
 				for (Talent talent : clsTalentsAtTier.toArray(new Talent[0])){
-					if (Talent.matches(talent, replacing)){
+					if (talent == replacing){
 						replacingIsInSet = true;
 						break;
 					} else {
-						if (containsTalent(curTalentsAtTier, talent)){
+						if (curTalentsAtTier.contains(talent)){
 							clsTalentsAtTier.remove(talent);
 						}
 					}
@@ -234,15 +234,6 @@ public class ScrollOfMetamorphosis extends ExoticScroll {
 
 			replaceOptions = options;
 			setup(replacing, tier, options);
-		}
-
-		private boolean containsTalent(Set<Talent> talents, Talent talent) {
-			for (Talent current : talents) {
-				if (Talent.matches(current, talent)) {
-					return true;
-				}
-			}
-			return false;
 		}
 
 		private void setup(Talent replacing, int tier, LinkedHashMap<Talent, Integer> replaceOptions){

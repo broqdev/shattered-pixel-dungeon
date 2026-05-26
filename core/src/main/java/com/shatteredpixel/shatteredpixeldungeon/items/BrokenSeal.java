@@ -366,7 +366,7 @@ public class BrokenSeal extends Item {
 
 		public synchronized int maxShield() {
 			//metamorphed iron will logic
-			if (!HeroClass.matches(((Hero)target).heroClass, HeroClass.WARRIOR) && ((Hero) target).hasTalent(Talent.IRON_WILL)){
+			if (((Hero)target).heroClass != HeroClass.WARRIOR && ((Hero) target).hasTalent(Talent.IRON_WILL)){
 				return ((Hero) target).pointsInTalent(Talent.IRON_WILL);
 			}
 

@@ -87,7 +87,7 @@ public class Pylon extends Mob {
 		enemySeen = enemy != null && enemy.isAlive() && fieldOfView[enemy.pos] && enemy.invisible <= 0;
 		//end of char/mob logic
 
-		if (Alignment.matches(alignment, Alignment.NEUTRAL)){
+		if (alignment == Alignment.NEUTRAL){
 			spend(TICK);
 			return true;
 		}
@@ -157,7 +157,7 @@ public class Pylon extends Mob {
 	@Override
 	public CharSprite sprite() {
 		PylonSprite p = (PylonSprite) super.sprite();
-		if (!Alignment.matches(alignment, Alignment.NEUTRAL)) p.activate();
+		if (alignment != Alignment.NEUTRAL) p.activate();
 		return p;
 	}
 
@@ -168,7 +168,7 @@ public class Pylon extends Mob {
 
 	@Override
 	public String description() {
-		if (Alignment.matches(alignment, Alignment.NEUTRAL)){
+		if (alignment == Alignment.NEUTRAL){
 			return Messages.get(this, "desc_inactive");
 		} else {
 			return Messages.get(this, "desc_active");
@@ -183,7 +183,7 @@ public class Pylon extends Mob {
 	@Override
 	public boolean add(Buff buff) {
 		//immune to all buffs/debuffs when inactive
-		if (!Alignment.matches(alignment, Alignment.NEUTRAL)) {
+		if (alignment != Alignment.NEUTRAL) {
 			return super.add(buff);
 		}
 		return false;
@@ -192,7 +192,7 @@ public class Pylon extends Mob {
 	@Override
 	public boolean isInvulnerable(Class effect) {
 		//immune to damage when inactive
-		return Alignment.matches(alignment, Alignment.NEUTRAL) || super.isInvulnerable(effect);
+		return alignment == Alignment.NEUTRAL || super.isInvulnerable(effect);
 	}
 
 	@Override

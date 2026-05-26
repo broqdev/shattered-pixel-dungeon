@@ -132,7 +132,7 @@ public class ChaliceOfBlood extends Artifact {
 		}
 
 		if (hero.buff(MagicImmune.class) != null && hero.buff(HolyWard.HolyArmBuff.class) != null){
-			damage -= HeroSubClass.matches(hero.subClass, HeroSubClass.PALADIN) ? 3 : 1;
+			damage -= hero.subClass == HeroSubClass.PALADIN ? 3 : 1;
 		}
 
 		WandOfLivingEarth.RockArmor rockArmor = hero.buff(WandOfLivingEarth.RockArmor.class);

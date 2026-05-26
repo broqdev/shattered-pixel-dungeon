@@ -55,6 +55,7 @@ import com.watabou.noosa.PointerArea;
 import com.watabou.noosa.ui.Component;
 import com.watabou.utils.Point;
 import com.watabou.utils.PointF;
+import com.watabou.utils.Reflection;
 
 import java.util.ArrayList;
 
@@ -558,7 +559,7 @@ public class Toolbar extends Component {
 		float shift = 0;
 		Toolbar.Mode mode;
 		try {
-			mode = Mode.valueOf(SPDSettings.toolbarMode());
+			mode = Reflection.canonicalEnum(Mode.class, SPDSettings.toolbarMode());
 		} catch (Exception e){
 			Game.reportException(e);
 			mode = PixelScene.landscape() ? Mode.GROUP : Mode.SPLIT;

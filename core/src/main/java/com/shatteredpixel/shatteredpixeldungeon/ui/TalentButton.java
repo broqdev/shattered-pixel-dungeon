@@ -169,32 +169,25 @@ public class TalentButton extends Button {
 					Talent replacing = ScrollOfMetamorphosis.WndMetamorphReplace.INSTANCE.replacing;
 
 					for (LinkedHashMap<Talent, Integer> tier : Dungeon.hero.talents){
-						Talent replacingKey = null;
-						for (Talent t : tier.keySet()){
-							if (Talent.matches(t, replacing)){
-								replacingKey = t;
-								break;
-							}
-						}
-						if (replacingKey != null){
+						if (tier.containsKey(replacing)){
 							LinkedHashMap<Talent, Integer> newTier = new LinkedHashMap<>();
 							for (Talent t : tier.keySet()){
-								if (Talent.matches(t, replacing)){
-									newTier.put(talent, tier.get(replacingKey));
+								if (t == replacing){
+									newTier.put(talent, tier.get(replacing));
 
-									if (!containsTalentValue(Dungeon.hero.metamorphedTalents, replacing)){
-										Dungeon.hero.metamorphedTalents.put(replacingKey, talent);
+									if (!Dungeon.hero.metamorphedTalents.containsValue(replacing)){
+										Dungeon.hero.metamorphedTalents.put(replacing, talent);
 
 									//if what we're replacing is already a value, we need to simplify the data structure
 									} else {
 										//a->b->a, we can just remove the entry entirely
-										if (Talent.matches(Dungeon.hero.metamorphedTalents.get(talent), replacing)){
+										if (Dungeon.hero.metamorphedTalents.get(talent) == replacing){
 											Dungeon.hero.metamorphedTalents.remove(talent);
 
 										//a->b->c, we need to simplify to a->c
 										} else {
 											for (Talent t2 : Dungeon.hero.metamorphedTalents.keySet()){
-												if (Talent.matches(Dungeon.hero.metamorphedTalents.get(t2), replacing)){
+												if (Dungeon.hero.metamorphedTalents.get(t2) == replacing){
 													Dungeon.hero.metamorphedTalents.put(t2, talent);
 												}
 											}
@@ -265,14 +258,5 @@ public class TalentButton extends Button {
 			emitter.pos(fill.x + (fill.width() + oldWidth) / 2f, fill.y + fill.height() / 2f);
 			emitter.burst(Speck.factory(Speck.STAR), 12);
 		}
-	}
-
-	private static boolean containsTalentValue(LinkedHashMap<Talent, Talent> talents, Talent talent) {
-		for (Talent value : talents.values()) {
-			if (Talent.matches(value, talent)) {
-				return true;
-			}
-		}
-		return false;
 	}
 }

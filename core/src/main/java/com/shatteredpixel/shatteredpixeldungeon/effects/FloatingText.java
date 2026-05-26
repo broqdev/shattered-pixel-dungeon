@@ -359,7 +359,7 @@ public class FloatingText extends RenderedTextBlock {
 			blessBoost *= attacker.buff(ChampionEnemy.class).evasionAndAccuracyFactor();
 		}
 		if (attacker.buff(Bless.class) != null) blessBoost *= 1.25f;
-		if (!HeroClass.matches(Dungeon.hero.heroClass, HeroClass.CLERIC)
+		if (Dungeon.hero.heroClass != HeroClass.CLERIC
 				&& Dungeon.hero.hasTalent(Talent.BLESS)
 				&& attacker.alignment == Char.Alignment.ALLY){
 			// + 3%/5%
@@ -369,7 +369,7 @@ public class FloatingText extends RenderedTextBlock {
 		if (RingOfAccuracy.accuracyMultiplier(attacker) > 1)    hitReasons.put(HIT_ACC, RingOfAccuracy.accuracyMultiplier(attacker));
 		if (attacker.buff(Scimitar.SwordDance.class) != null)   hitReasons.put(HIT_DANCE, 1.5f);
 		if (!(wep instanceof MissileWeapon)) {
-			if (attacker instanceof Hero && ((Hero) attacker).hasTalent(Talent.PRECISE_ASSAULT) && !HeroClass.matches(((Hero) attacker).heroClass, HeroClass.DUELIST)){
+			if (attacker instanceof Hero && ((Hero) attacker).hasTalent(Talent.PRECISE_ASSAULT) && ((Hero) attacker).heroClass != HeroClass.DUELIST){
 				hitReasons.put(HIT_PRES, 0.1f * Dungeon.hero.pointsInTalent(Talent.PRECISE_ASSAULT));
 			}
 			if (attacker.buff(Talent.PreciseAssaultTracker.class) != null){
@@ -453,7 +453,7 @@ public class FloatingText extends RenderedTextBlock {
 			blessBoost *= defender.buff(ChampionEnemy.class).evasionAndAccuracyFactor();
 		}
 		if (defender.buff(Bless.class) != null) blessBoost *= 1.25f;
-		if (!HeroClass.matches(Dungeon.hero.heroClass, HeroClass.CLERIC)
+		if (Dungeon.hero.heroClass != HeroClass.CLERIC
 				&& Dungeon.hero.hasTalent(Talent.BLESS)
 				&& defender.alignment == Char.Alignment.ALLY){
 			// + 3%/5%

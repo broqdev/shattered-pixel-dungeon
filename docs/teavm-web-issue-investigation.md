@@ -104,29 +104,17 @@ The fragile identity checks affected more than one method:
 
 ### Fix
 
-Enum restore and transition matching were hardened in two layers.
+Enum restore was hardened at the deserialization boundary.
 
-First, `Bundle.getEnum(...)` now canonicalizes all restored enums by name:
-
-```java
-for (E value : enumClass.getEnumConstants()) {
-    if (value.name().equals(name)) {
-        return value;
-    }
-}
-```
-
-This applies to every enum restored through `Bundle`, not only level transitions.
-
-Second, transition game logic now uses name-based helpers:
+`Bundle.getEnum(...)` now canonicalizes all restored enums by name through `Reflection.canonicalEnum(...)`. The helper first resolves the public static enum field, then falls back to scanning `getEnumConstants()`:
 
 ```java
-LevelTransition.typeMatches(a, b)
-LevelTransition.isEntrance(type)
-LevelTransition.isExit(type)
+Object value = ClassReflection.getField(enumClass, name).get(null);
+...
+for (E value : enumClass.getEnumConstants()) ...
 ```
 
-All production transition type checks that controlled navigation or special level behavior were moved to these helpers.
+This applies to every enum restored through `Bundle`, not only level transitions. Once restored values are canonical, transition game logic can keep the original `==`, `!=`, and `switch` semantics instead of carrying name-based match helpers throughout gameplay code.
 
 For the failing stair case, the expected result after the fix is:
 
@@ -191,30 +179,21 @@ The earlier enum audit missed this because it generalized the stair bug only to 
 
 ### Fix
 
-`Bundle.getEnum(...)` now first resolves the enum constant by its public static enum field name before falling back to the enum constants array. This makes restored enum values more likely to be the same object used by ordinary code-level constants.
+`Bundle.getEnum(...)` now first resolves the enum constant by its public static enum field name before falling back to the enum constants array. That returns the same object used by ordinary code-level constants, so gameplay gates such as `subClass == HeroSubClass.BERSERKER` can remain unchanged.
 
-`HeroSubClass` now also exposes a backend-stable matcher:
+The enum audit was then re-centered on restore/input boundaries instead of gameplay callsites:
 
-```java
-HeroSubClass.matches(a, b)
-```
-
-The Berserker rage gate uses that helper, so identity still works on JVM and name equality covers TeaVM-restored enum values. The follow-up audit also moves other important subclass gameplay gates to the same helper.
-
-The enum audit widened the same defensive pattern to other restored gameplay enums:
-
-- `HeroClass.matches(...)` for class-specific talents, item behavior, and UI gates.
-- `HeroSubClass.matches(...)` for subclass-specific combat, plants, cleric spells, champion weapons, and Berserker rage.
-- `Weapon.Augment.matches(...)` and `Armor.Augment.matches(...)` for restored item augmentation behavior.
-- `Char.Alignment.matches(...)` for `Bee` and `Pylon`, the two character types that explicitly restore alignment through `Bundle.getEnum(...)`.
+- `HeroClass`, `HeroSubClass`, `LevelTransition.Type`, room/door/state enums, alignments, and item augments are canonicalized through `Bundle.getEnum(...)`.
+- Direct enum-name restore/input sites that previously called `valueOf(...)`, such as badges, heaps, journal landmarks, toolbar mode, and news icons, use the same `Reflection.canonicalEnum(...)` helper.
+- `Talent` map restore canonicalizes persisted talent names before writing `Hero.talents` and `Hero.metamorphedTalents`.
+- Broad helper methods such as `HeroSubClass.matches(...)`, `HeroClass.matches(...)`, `Talent.matches(...)`, `Char.Alignment.matches(...)`, augment matchers, and `LevelTransition.typeMatches(...)` were removed so gameplay code keeps normal enum semantics.
 
 ### Regression Coverage
 
 Focused tests cover:
 
-- `HeroSubClass.matches(...)` behavior;
 - restored-Berserker-style rage gating through `Hero.defenseProc(...)`;
-- high-risk subclass gates using name-based comparison rather than raw enum identity;
+- subclass gates after canonical enum restore;
 - canonical enum restore through `Bundle.getEnum(...)`.
 
 ## Bug 4: Shard Of Oblivion Info Crashes The Web Build
@@ -298,26 +277,16 @@ The first enum audit missed this because it focused on enum fields restored dire
 
 ### Fix
 
-`Talent` now has the same backend-stable matcher pattern as class/subclass and transition enums:
+The fix moved the name-stable behavior to the restore boundary. `Talent.restoreTalentsFromBundle(...)` canonicalizes persisted talent names before writing:
 
-```java
-Talent.matches(a, b)
-```
+- `Hero.metamorphedTalents` replacement keys and values;
+- restored tier point entries in `Hero.talents`.
 
-The talent lifecycle now uses name-stable matching for:
-
-- `Hero.pointsInTalent(...)`
-- `Hero.upgradeTalent(...)`
-- `Talent.onTalentUpgraded(...)`
-- class talent replacement through metamorphosis
-- metamorphosis choose/replace UI logic
-- special `HEROIC_ENERGY` title/icon checks
-
-The important behavioral point is that the hero's actual stored map key remains the key that gets updated. We match incoming talent values by name, then write back through the existing key, so the map does not accumulate duplicate name-equivalent keys.
+For tier maps, restore first initializes the normal class/subclass/armor talent keys, then resolves saved names back to those existing keys before writing point values. The important behavioral point is that gameplay code such as `Hero.pointsInTalent(...)`, `Hero.upgradeTalent(...)`, `Talent.onTalentUpgraded(...)`, and UI callbacks can keep ordinary enum identity logic because the stored keys are canonical again.
 
 ### Regression Coverage
 
-`HeroSubClassTest.strongmanTalentIncreasesStrength` verifies that three points in `Strongman` are readable through `Hero.pointsInTalent(...)` and increase a 15-strength Warrior/Berserker to 17 strength.
+`HeroSubClassTest.strongmanTalentIncreasesStrength` verifies that three points in `Strongman` are readable through `Hero.pointsInTalent(...)` and increase a 15-strength Warrior/Berserker to 17 strength. `HeroSubClassTest.restoredStrongmanPointsUseCanonicalTalentKey` verifies the restore path that produced the web-only split-brain talent state.
 
 ## Related Race Hardening
 
@@ -379,7 +348,7 @@ For web manual testing, serve `web/build/dist/webapp` and capture `[WEB-PARITY]`
 
 ## Investigation Lessons
 
-- If a TeaVM web log prints enum names that look correct but matching fails, suspect enum identity/canonicalization before patching game rules.
+- If a TeaVM web log prints enum names that look correct but matching fails, suspect enum identity/canonicalization at restore/input boundaries before patching game rules.
 - If a static nested `Bundlable` disappears only on web, inspect constructor availability and generated reflection metadata separately.
 - If TeaVM crashes inside `String.format` or `Messages.format`, inspect both the resource string shape and the runtime formatter normalizer before changing item or UI logic.
 - Prefer capability checks used by the restore path, such as default constructor availability, over Java metadata checks that can drift between backends.

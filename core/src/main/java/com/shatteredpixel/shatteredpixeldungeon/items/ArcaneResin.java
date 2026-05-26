@@ -190,7 +190,7 @@ public class ArcaneResin extends Item {
 			int level = w.level() - w.resinBonus;
 			int quantity = 2*(level+1);
 
-			if (!HeroClass.matches(Dungeon.hero.heroClass, HeroClass.MAGE) && Dungeon.hero.hasTalent(Talent.WAND_PRESERVATION)){
+			if (Dungeon.hero.heroClass != HeroClass.MAGE && Dungeon.hero.hasTalent(Talent.WAND_PRESERVATION)){
 				quantity += Dungeon.hero.pointsInTalent(Talent.WAND_PRESERVATION);
 			}
 			return quantity;

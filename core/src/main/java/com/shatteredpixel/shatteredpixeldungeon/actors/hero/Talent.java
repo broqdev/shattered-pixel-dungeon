@@ -445,7 +445,7 @@ public enum Talent {
 	}
 
 	public int icon(){
-		if (matches(this, HEROIC_ENERGY)){
+		if (this == HEROIC_ENERGY){
 			if (Ratmogrify.useRatroicEnergy){
 				return 218;
 			}
@@ -473,12 +473,8 @@ public enum Talent {
 		return maxPoints;
 	}
 
-	public static boolean matches(Talent a, Talent b) {
-		return a == b || (a != null && b != null && a.name().equals(b.name()));
-	}
-
 	public String title(){
-		if (matches(this, HEROIC_ENERGY) && Ratmogrify.useRatroicEnergy){
+		if (this == HEROIC_ENERGY && Ratmogrify.useRatroicEnergy){
 			return Messages.get(this, name() + ".rat_title");
 		}
 		return Messages.get(this, name() + ".title");
@@ -500,16 +496,16 @@ public enum Talent {
 
 	public static void onTalentUpgraded( Hero hero, Talent talent ){
 		//for metamorphosis
-		if (Talent.matches(talent, IRON_WILL) && !HeroClass.matches(hero.heroClass, HeroClass.WARRIOR)){
+		if (talent == IRON_WILL && hero.heroClass != HeroClass.WARRIOR){
 			Buff.affect(hero, BrokenSeal.WarriorShield.class);
 		}
 
-		if (Talent.matches(talent, VETERANS_INTUITION) && hero.pointsInTalent(VETERANS_INTUITION) == 2){
+		if (talent == VETERANS_INTUITION && hero.pointsInTalent(VETERANS_INTUITION) == 2){
 			if (hero.belongings.armor() != null && !ShardOfOblivion.passiveIDDisabled())  {
 				hero.belongings.armor.identify();
 			}
 		}
-		if (Talent.matches(talent, THIEFS_INTUITION) && hero.pointsInTalent(THIEFS_INTUITION) == 2){
+		if (talent == THIEFS_INTUITION && hero.pointsInTalent(THIEFS_INTUITION) == 2){
 			if (hero.belongings.ring instanceof Ring && !ShardOfOblivion.passiveIDDisabled()) {
 				hero.belongings.ring.identify();
 			}
@@ -522,21 +518,21 @@ public enum Talent {
 				}
 			}
 		}
-		if (Talent.matches(talent, THIEFS_INTUITION) && hero.pointsInTalent(THIEFS_INTUITION) == 1){
+		if (talent == THIEFS_INTUITION && hero.pointsInTalent(THIEFS_INTUITION) == 1){
 			if (hero.belongings.ring instanceof Ring) hero.belongings.ring.setKnown();
 			if (hero.belongings.misc instanceof Ring) ((Ring) hero.belongings.misc).setKnown();
 		}
-		if (Talent.matches(talent, ADVENTURERS_INTUITION) && hero.pointsInTalent(ADVENTURERS_INTUITION) == 2){
+		if (talent == ADVENTURERS_INTUITION && hero.pointsInTalent(ADVENTURERS_INTUITION) == 2){
 			if (hero.belongings.weapon() != null && !ShardOfOblivion.passiveIDDisabled()){
 				hero.belongings.weapon().identify();
 			}
 		}
 
-		if (Talent.matches(talent, PROTECTIVE_SHADOWS) && hero.invisible > 0){
+		if (talent == PROTECTIVE_SHADOWS && hero.invisible > 0){
 			Buff.affect(hero, Talent.ProtectiveShadowsTracker.class);
 		}
 
-		if (Talent.matches(talent, LIGHT_CLOAK) && HeroClass.matches(hero.heroClass, HeroClass.ROGUE)){
+		if (talent == LIGHT_CLOAK && hero.heroClass == HeroClass.ROGUE){
 			for (Item item : Dungeon.hero.belongings.backpack){
 				if (item instanceof CloakOfShadows){
 					if (!hero.belongings.lostInventory() || item.keptThroughLostInventory()) {
@@ -546,16 +542,16 @@ public enum Talent {
 			}
 		}
 
-		if (Talent.matches(talent, HEIGHTENED_SENSES) || Talent.matches(talent, FARSIGHT) || Talent.matches(talent, DIVINE_SENSE)){
+		if (talent == HEIGHTENED_SENSES || talent == FARSIGHT || talent == DIVINE_SENSE){
 			Dungeon.observe();
 		}
 
-		if (Talent.matches(talent, TWIN_UPGRADES) || Talent.matches(talent, DESPERATE_POWER)
-				|| Talent.matches(talent, STRONGMAN) || Talent.matches(talent, DURABLE_PROJECTILES)){
+		if (talent == TWIN_UPGRADES || talent == DESPERATE_POWER
+				|| talent == STRONGMAN || talent == DURABLE_PROJECTILES){
 			Item.updateQuickslot();
 		}
 
-		if (Talent.matches(talent, UNENCUMBERED_SPIRIT) && hero.pointsInTalent(talent) == 3){
+		if (talent == UNENCUMBERED_SPIRIT && hero.pointsInTalent(talent) == 3){
 			Item toGive = new ClothArmor().identify();
 			if (!toGive.collect()){
 				Dungeon.level.drop(toGive, hero.pos).sprite.drop();
@@ -566,7 +562,7 @@ public enum Talent {
 			}
 		}
 
-		if (Talent.matches(talent, LIGHT_READING) && HeroClass.matches(hero.heroClass, HeroClass.CLERIC)){
+		if (talent == LIGHT_READING && hero.heroClass == HeroClass.CLERIC){
 			for (Item item : Dungeon.hero.belongings.backpack){
 				if (item instanceof HolyTome){
 					if (!hero.belongings.lostInventory() || item.keptThroughLostInventory()) {
@@ -577,7 +573,7 @@ public enum Talent {
 		}
 
 		//if we happen to have spirit form applied with a ring of might
-		if (Talent.matches(talent, SPIRIT_FORM)){
+		if (talent == SPIRIT_FORM){
 			Dungeon.hero.updateHT(false);
 		}
 	}
@@ -624,7 +620,7 @@ public enum Talent {
 			Buff.affect( hero, PhysicalEmpower.class).set(3, 1 + hero.pointsInTalent(STRENGTHENING_MEAL));
 		}
 		if (hero.hasTalent(FOCUSED_MEAL)){
-			if (HeroClass.matches(hero.heroClass, HeroClass.DUELIST)){
+			if (hero.heroClass == HeroClass.DUELIST){
 				//0.67/1 charge for the duelist
 				Buff.affect( hero, MeleeWeapon.Charger.class ).gainCharge((hero.pointsInTalent(FOCUSED_MEAL)+1)/3f);
 				ScrollOfRecharging.charge( hero );
@@ -634,7 +630,7 @@ public enum Talent {
 			}
 		}
 		if (hero.hasTalent(SATIATED_SPELLS)){
-			if (HeroClass.matches(hero.heroClass, HeroClass.CLERIC)) {
+			if (hero.heroClass == HeroClass.CLERIC) {
 				Buff.affect(hero, SatiatedSpellsTracker.class);
 			} else {
 				//3/5 shielding, delayed up to 10 turns
@@ -647,7 +643,7 @@ public enum Talent {
 			}
 		}
 		if (hero.hasTalent(ENLIGHTENING_MEAL)){
-			if (HeroClass.matches(hero.heroClass, HeroClass.CLERIC)) {
+			if (hero.heroClass == HeroClass.CLERIC) {
 				HolyTome tome = hero.belongings.getItem(HolyTome.class);
 				if (tome != null) {
 					// 2/3 of a charge at +1, 1 full charge at +2
@@ -771,7 +767,7 @@ public enum Talent {
 			Sample.INSTANCE.play( Assets.Sounds.MELD );
 		}
 		if (hero.hasTalent(RECALL_INSCRIPTION) && Scroll.class.isAssignableFrom(cls) && cls != ScrollOfUpgrade.class){
-			if (HeroClass.matches(hero.heroClass, HeroClass.CLERIC)){
+			if (hero.heroClass == HeroClass.CLERIC){
 				Buff.prolong(hero, RecallInscription.UsedItemTracker.class, hero.pointsInTalent(RECALL_INSCRIPTION) == 2 ? 300 : 10).item = cls;
 			} else {
 				// 10/15%
@@ -785,7 +781,7 @@ public enum Talent {
 
 	public static void onRunestoneUsed( Hero hero, int pos, Class<?extends Item> cls ){
 		if (hero.hasTalent(RECALL_INSCRIPTION) && Runestone.class.isAssignableFrom(cls)){
-			if (HeroClass.matches(hero.heroClass, HeroClass.CLERIC)){
+			if (hero.heroClass == HeroClass.CLERIC){
 				Buff.prolong(hero, RecallInscription.UsedItemTracker.class, hero.pointsInTalent(RECALL_INSCRIPTION) == 2 ? 300 : 10).item = cls;
 			} else {
 
@@ -807,13 +803,13 @@ public enum Talent {
 			Buff.prolong(hero, EnhancedRings.class, 3f*hero.pointsInTalent(ENHANCED_RINGS));
 		}
 
-		if (!HeroClass.matches(Dungeon.hero.heroClass, HeroClass.CLERIC)
+		if (Dungeon.hero.heroClass != HeroClass.CLERIC
 				&& Dungeon.hero.hasTalent(Talent.DIVINE_SENSE)){
 			Buff.prolong(Dungeon.hero, DivineSense.DivineSenseTracker.class, Dungeon.hero.cooldown()+1);
 		}
 
 		// 10/20/30%
-		if (!HeroClass.matches(Dungeon.hero.heroClass, HeroClass.CLERIC)
+		if (Dungeon.hero.heroClass != HeroClass.CLERIC
 				&& Dungeon.hero.hasTalent(Talent.CLEANSE)
 				&& Random.Int(10) < Dungeon.hero.pointsInTalent(Talent.CLEANSE)){
 			boolean removed = false;
@@ -997,9 +993,8 @@ public enum Talent {
 				break;
 		}
 		for (Talent talent : tierTalents){
-			Talent replacement = replacementFor(replacements, talent);
-			if (replacement != null){
-				talent = replacement;
+			if (replacements.containsKey(talent)){
+				talent = replacements.get(talent);
 			}
 			talents.get(0).put(talent, 0);
 		}
@@ -1027,9 +1022,8 @@ public enum Talent {
 				break;
 		}
 		for (Talent talent : tierTalents){
-			Talent replacement = replacementFor(replacements, talent);
-			if (replacement != null){
-				talent = replacement;
+			if (replacements.containsKey(talent)){
+				talent = replacements.get(talent);
 			}
 			talents.get(1).put(talent, 0);
 		}
@@ -1057,9 +1051,8 @@ public enum Talent {
 				break;
 		}
 		for (Talent talent : tierTalents){
-			Talent replacement = replacementFor(replacements, talent);
-			if (replacement != null){
-				talent = replacement;
+			if (replacements.containsKey(talent)){
+				talent = replacements.get(talent);
 			}
 			talents.get(2).put(talent, 0);
 		}
@@ -1069,21 +1062,12 @@ public enum Talent {
 		//TBD
 	}
 
-	private static Talent replacementFor(LinkedHashMap<Talent, Talent> replacements, Talent talent) {
-		for (Talent replaced : replacements.keySet()) {
-			if (matches(replaced, talent)) {
-				return replacements.get(replaced);
-			}
-		}
-		return null;
-	}
-
 	public static void initSubclassTalents( Hero hero ){
 		initSubclassTalents( hero.subClass, hero.talents );
 	}
 
 	public static void initSubclassTalents( HeroSubClass cls, ArrayList<LinkedHashMap<Talent, Integer>> talents ){
-		if (HeroSubClass.matches(cls, HeroSubClass.NONE)) return;
+		if (cls == HeroSubClass.NONE) return;
 
 		while (talents.size() < MAX_TALENT_TIERS){
 			talents.add(new LinkedHashMap<>());
@@ -1197,7 +1181,9 @@ public enum Talent {
 				if (renamedTalents.containsKey(value)) value = renamedTalents.get(value);
 				if (!removedTalents.contains(key) && !removedTalents.contains(value)){
 					try {
-						hero.metamorphedTalents.put(Talent.valueOf(key), Talent.valueOf(value));
+						hero.metamorphedTalents.put(
+								Reflection.canonicalEnum(Talent.class, key),
+								Reflection.canonicalEnum(Talent.class, value));
 					} catch (Exception e) {
 						ShatteredPixelDungeon.reportException(e);
 					}
@@ -1219,16 +1205,9 @@ public enum Talent {
 					if (renamedTalents.containsKey(tName)) tName = renamedTalents.get(tName);
 					if (!removedTalents.contains(tName)) {
 						try {
-							Talent talent = Talent.valueOf(tName);
-							if (tier.containsKey(talent)) {
+							Talent talent = restoredTierTalent(tier, tName);
+							if (talent != null) {
 								tier.put(talent, Math.min(points, talent.maxPoints()));
-							} else {
-								for (Talent tierTalent : tier.keySet()) {
-									if (tierTalent != null && tierTalent.name().equals(tName)) {
-										tier.put(tierTalent, Math.min(points, tierTalent.maxPoints()));
-										break;
-									}
-								}
 							}
 						} catch (Exception e) {
 							ShatteredPixelDungeon.reportException(e);
@@ -1237,6 +1216,19 @@ public enum Talent {
 				}
 			}
 		}
+	}
+
+	private static Talent restoredTierTalent( LinkedHashMap<Talent, Integer> tier, String name ){
+		Talent canonical = Reflection.canonicalEnum(Talent.class, name);
+		if (tier.containsKey(canonical)) {
+			return canonical;
+		}
+		for (Talent tierTalent : tier.keySet()) {
+			if (tierTalent != null && tierTalent.name().equals(name)) {
+				return tierTalent;
+			}
+		}
+		return null;
 	}
 
 }

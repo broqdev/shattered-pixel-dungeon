@@ -28,6 +28,7 @@ import com.shatteredpixel.shatteredpixeldungeon.ShatteredPixelDungeon;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.ItemSprite;
 import com.shatteredpixel.shatteredpixeldungeon.ui.Icons;
 import com.watabou.noosa.Image;
+import com.watabou.utils.Reflection;
 
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -101,7 +102,7 @@ public class News {
 			//recognized formats are:
 			//"ICON: <name of enum constant in Icons.java>"
 			if (article.icon.startsWith("ICON: ")){
-				return Icons.get(Icons.valueOf(article.icon.replace("ICON: ", "")));
+				return Icons.get(Reflection.canonicalEnum(Icons.class, article.icon.replace("ICON: ", "")));
 			//"ITEM: <integer constant corresponding to values in ItemSpriteSheet.java>"
 			} else if (article.icon.startsWith("ITEM: ")){
 				return new ItemSprite(Integer.parseInt(article.icon.replace("ITEM: ", "")));

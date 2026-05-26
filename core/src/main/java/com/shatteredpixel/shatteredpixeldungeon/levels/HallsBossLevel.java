@@ -333,7 +333,7 @@ public class HallsBossLevel extends Level {
 
 	@Override
 	public boolean activateTransition(Hero hero, LevelTransition transition) {
-		if (LevelTransition.typeMatches(transition.type, LevelTransition.Type.REGULAR_ENTRANCE)
+		if (transition.type == LevelTransition.Type.REGULAR_ENTRANCE
 				&& hero.belongings.getItem(Amulet.class) != null
 				&& hero.buff(AscensionChallenge.class) == null) {
 

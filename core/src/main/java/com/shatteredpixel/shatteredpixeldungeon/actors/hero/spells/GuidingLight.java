@@ -98,7 +98,7 @@ public class GuidingLight extends TargetedClericSpell {
 				hero.next();
 
 				onSpellCast(tome, hero);
-				if (HeroSubClass.matches(hero.subClass, HeroSubClass.PRIEST) && hero.buff(GuidingLightPriestCooldown.class) == null) {
+				if (hero.subClass == HeroSubClass.PRIEST && hero.buff(GuidingLightPriestCooldown.class) == null) {
 					Buff.prolong(hero, GuidingLightPriestCooldown.class, 50f);
 					ActionIndicator.refresh();
 				}
@@ -109,7 +109,7 @@ public class GuidingLight extends TargetedClericSpell {
 
 	@Override
 	public float chargeUse(Hero hero) {
-		if (HeroSubClass.matches(hero.subClass, HeroSubClass.PRIEST)
+		if (hero.subClass == HeroSubClass.PRIEST
 			&& hero.buff(GuidingLightPriestCooldown.class) == null){
 			return 0;
 		} else {
@@ -119,7 +119,7 @@ public class GuidingLight extends TargetedClericSpell {
 
 	public String desc(){
 		String desc = Messages.get(this, "desc");
-		if (HeroSubClass.matches(Dungeon.hero.subClass, HeroSubClass.PRIEST)){
+		if (Dungeon.hero.subClass == HeroSubClass.PRIEST){
 			desc += "\n\n" + Messages.get(this, "desc_priest");
 		}
 		return desc + "\n\n" + Messages.get(this, "charge_cost", (int)chargeUse(Dungeon.hero));
@@ -167,9 +167,9 @@ public class GuidingLight extends TargetedClericSpell {
 		public String desc() {
 			String desc = super.desc();
 
-			if (HeroSubClass.matches(Dungeon.hero.subClass, HeroSubClass.PRIEST)){
+			if (Dungeon.hero.subClass == HeroSubClass.PRIEST){
 				desc += "\n\n" + Messages.get(this, "desc_priest");
-			} else if (!HeroClass.matches(Dungeon.hero.heroClass, HeroClass.CLERIC)){
+			} else if (Dungeon.hero.heroClass != HeroClass.CLERIC){
 				desc += "\n\n" + Messages.get(this, "desc_generic");
 			}
 

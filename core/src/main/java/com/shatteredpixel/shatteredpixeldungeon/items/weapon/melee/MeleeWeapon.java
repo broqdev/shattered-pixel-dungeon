@@ -66,14 +66,14 @@ public class MeleeWeapon extends Weapon {
 	@Override
 	public void activate(Char ch) {
 		super.activate(ch);
-		if (ch instanceof Hero && HeroClass.matches(((Hero) ch).heroClass, HeroClass.DUELIST)){
+		if (ch instanceof Hero && ((Hero) ch).heroClass == HeroClass.DUELIST){
 			Buff.affect(ch, Charger.class);
 		}
 	}
 
 	@Override
 	public String defaultAction() {
-		if (Dungeon.hero != null && (HeroClass.matches(Dungeon.hero.heroClass, HeroClass.DUELIST)
+		if (Dungeon.hero != null && (Dungeon.hero.heroClass == HeroClass.DUELIST
 			|| Dungeon.hero.hasTalent(Talent.SWIFT_EQUIP))){
 			return AC_ABILITY;
 		} else {
@@ -84,7 +84,7 @@ public class MeleeWeapon extends Weapon {
 	@Override
 	public ArrayList<String> actions(Hero hero) {
 		ArrayList<String> actions = super.actions(hero);
-		if (isEquipped(hero) && HeroClass.matches(hero.heroClass, HeroClass.DUELIST)){
+		if (isEquipped(hero) && hero.heroClass == HeroClass.DUELIST){
 			actions.add(AC_ABILITY);
 		}
 		return actions;
@@ -110,13 +110,13 @@ public class MeleeWeapon extends Weapon {
 					if (hero.buff(Talent.SwiftEquipCooldown.class) == null
 						|| hero.buff(Talent.SwiftEquipCooldown.class).hasSecondUse()){
 						execute(hero, AC_EQUIP);
-					} else if (HeroClass.matches(hero.heroClass, HeroClass.DUELIST)) {
+					} else if (hero.heroClass == HeroClass.DUELIST) {
 						GLog.w(Messages.get(this, "ability_need_equip"));
 					}
-				} else if (HeroClass.matches(hero.heroClass, HeroClass.DUELIST)) {
+				} else if (hero.heroClass == HeroClass.DUELIST) {
 					GLog.w(Messages.get(this, "ability_need_equip"));
 				}
-			} else if (!HeroClass.matches(hero.heroClass, HeroClass.DUELIST)){
+			} else if (hero.heroClass != HeroClass.DUELIST){
 				//do nothing
 			} else if (STRReq() > hero.STR()){
 				GLog.w(Messages.get(this, "ability_low_str"));
@@ -176,7 +176,7 @@ public class MeleeWeapon extends Weapon {
 			charger.partialCharge++;
 		}
 
-		if (HeroClass.matches(hero.heroClass, HeroClass.DUELIST)
+		if (hero.heroClass == HeroClass.DUELIST
 				&& hero.hasTalent(Talent.AGGRESSIVE_BARRIER)
 				&& (hero.HP / (float)hero.HT) <= 0.5f){
 			int shieldAmt = 1 + 2*hero.pointsInTalent(Talent.AGGRESSIVE_BARRIER);
@@ -337,7 +337,7 @@ public class MeleeWeapon extends Weapon {
 		}
 
 		if (isEquipped(Dungeon.hero) && !hasCurseEnchant() && Dungeon.hero.buff(HolyWeapon.HolyWepBuff.class) != null
-				&& (!HeroSubClass.matches(Dungeon.hero.subClass, HeroSubClass.PALADIN) || enchantment == null)){
+				&& (Dungeon.hero.subClass != HeroSubClass.PALADIN || enchantment == null)){
 			info += "\n\n" + Messages.capitalize(Messages.get(Weapon.class, "enchanted", Messages.get(HolyWeapon.class, "ench_name", Messages.get(Enchantment.class, "enchant"))));
 			info += " " + Messages.get(HolyWeapon.class, "ench_desc");
 		} else if (enchantment != null && (cursedKnown || !enchantment.curse())){
@@ -361,7 +361,7 @@ public class MeleeWeapon extends Weapon {
 		}
 
 		//the mage's staff has no ability as it can only be gained by the mage
-		if (Dungeon.hero != null && HeroClass.matches(Dungeon.hero.heroClass, HeroClass.DUELIST) && !(this instanceof MagesStaff)){
+		if (Dungeon.hero != null && Dungeon.hero.heroClass == HeroClass.DUELIST && !(this instanceof MagesStaff)){
 			info += "\n\n" + abilityInfo();
 		}
 		
@@ -427,7 +427,7 @@ public class MeleeWeapon extends Weapon {
 					float chargeToGain = 1/(60f-1.5f*(chargeCap()-charges));
 
 					//40 to 30 turns per charge for champion
-					if (HeroSubClass.matches(Dungeon.hero.subClass, HeroSubClass.CHAMPION)){
+					if (Dungeon.hero.subClass == HeroSubClass.CHAMPION){
 						chargeToGain *= 1.5f;
 					}
 
@@ -454,7 +454,7 @@ public class MeleeWeapon extends Weapon {
 				partialCharge = 0;
 			}
 
-			if (ActionIndicator.action != this && HeroSubClass.matches(Dungeon.hero.subClass, HeroSubClass.CHAMPION)) {
+			if (ActionIndicator.action != this && Dungeon.hero.subClass == HeroSubClass.CHAMPION) {
 				ActionIndicator.setAction(this);
 			}
 
@@ -464,7 +464,7 @@ public class MeleeWeapon extends Weapon {
 
 		@Override
 		public void fx(boolean on) {
-			if (on && HeroSubClass.matches(Dungeon.hero.subClass, HeroSubClass.CHAMPION)) {
+			if (on && Dungeon.hero.subClass == HeroSubClass.CHAMPION) {
 				ActionIndicator.setAction(this);
 			}
 		}
@@ -477,7 +477,7 @@ public class MeleeWeapon extends Weapon {
 
 		public int chargeCap(){
 			//caps at level 19 with 8 or 10 charges
-			if (HeroSubClass.matches(Dungeon.hero.subClass, HeroSubClass.CHAMPION)){
+			if (Dungeon.hero.subClass == HeroSubClass.CHAMPION){
 				return Math.min(10, 4 + (Dungeon.hero.lvl - 1) / 3);
 			} else {
 				return Math.min(8, 2 + (Dungeon.hero.lvl - 1) / 3);
@@ -558,7 +558,7 @@ public class MeleeWeapon extends Weapon {
 
 		@Override
 		public void doAction() {
-			if (!HeroSubClass.matches(Dungeon.hero.subClass, HeroSubClass.CHAMPION)){
+			if (Dungeon.hero.subClass != HeroSubClass.CHAMPION){
 				return;
 			}
 

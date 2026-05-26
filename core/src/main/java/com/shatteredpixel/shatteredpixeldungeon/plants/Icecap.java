@@ -44,7 +44,7 @@ public class Icecap extends Plant {
 	@Override
 	public void activate( Char ch ) {
 		
-		if (ch instanceof Hero && HeroSubClass.matches(((Hero) ch).subClass, HeroSubClass.WARDEN)){
+		if (ch instanceof Hero && ((Hero) ch).subClass == HeroSubClass.WARDEN){
 			Buff.affect(ch, FrostImbue.class, FrostImbue.DURATION*0.3f);
 		}
 
