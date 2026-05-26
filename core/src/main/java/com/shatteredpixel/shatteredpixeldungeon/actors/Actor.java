@@ -244,7 +244,9 @@ public abstract class Actor implements Bundlable {
 		return actor == null ? "none" : actor.getClass().getName();
 	}
 
-	public static void notifySpriteWaiters() {
+	public static void requestThreadShutdown() {
+		keepActorThreadAlive = false;
+
 		for (Char ch : chars()) {
 			if (ch.sprite != null) {
 				synchronized (ch.sprite) {

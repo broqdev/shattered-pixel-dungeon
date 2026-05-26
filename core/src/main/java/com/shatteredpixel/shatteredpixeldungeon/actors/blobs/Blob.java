@@ -57,16 +57,19 @@ public class Blob extends Actor {
 	public void storeInBundle( Bundle bundle ) {
 		super.storeInBundle( bundle );
 		
-		if (volume > 0) {
+		if (cur != null) {
 		
 			int start;
-			for (start=0; start < Dungeon.level.length(); start++) {
+			for (start=0; start < cur.length; start++) {
 				if (cur[start] > 0) {
 					break;
 				}
 			}
+			if (start >= cur.length) {
+				return;
+			}
 			int end;
-			for (end=Dungeon.level.length()-1; end > start; end--) {
+			for (end=cur.length-1; end > start; end--) {
 				if (cur[end] > 0) {
 					break;
 				}

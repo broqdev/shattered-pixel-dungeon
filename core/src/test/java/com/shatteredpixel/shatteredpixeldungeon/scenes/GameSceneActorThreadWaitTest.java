@@ -36,8 +36,12 @@ import com.badlogic.gdx.utils.Clipboard;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
+import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.Blob;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
+import com.shatteredpixel.shatteredpixeldungeon.levels.Level;
+import com.shatteredpixel.shatteredpixeldungeon.levels.Terrain;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.CharSprite;
+import com.watabou.utils.Bundle;
 
 import org.junit.After;
 import org.junit.Before;
@@ -45,12 +49,14 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 public class GameSceneActorThreadWaitTest {
@@ -62,6 +68,7 @@ public class GameSceneActorThreadWaitTest {
 	private boolean originalKeepActorThreadAlive;
 	private Application originalApp;
 	private Hero originalHero;
+	private Level originalLevel;
 	private Thread parkedActorThread;
 	private final AtomicBoolean keepParkedThreadAlive = new AtomicBoolean();
 
@@ -77,6 +84,7 @@ public class GameSceneActorThreadWaitTest {
 		originalKeepActorThreadAlive = Actor.keepActorThreadAlive;
 		originalApp = Gdx.app;
 		originalHero = Dungeon.hero;
+		originalLevel = Dungeon.level;
 	}
 
 	@After
@@ -91,6 +99,7 @@ public class GameSceneActorThreadWaitTest {
 		Actor.keepActorThreadAlive = originalKeepActorThreadAlive;
 		Gdx.app = originalApp;
 		Dungeon.hero = originalHero;
+		Dungeon.level = originalLevel;
 	}
 
 	@Test
@@ -111,8 +120,9 @@ public class GameSceneActorThreadWaitTest {
 	@Test
 	public void webSceneSwitchDoesNotBlockRenderThreadWhileActorThreadIsProcessing() throws Exception {
 		Gdx.app = new TestWebApplication();
+		TestActor currentActor = new TestActor();
 		startInterruptTolerantActorThread();
-		currentActorField.set(null, new TestActor());
+		currentActorField.set(null, currentActor);
 		actorThreadField.set(null, parkedActorThread);
 		Actor.keepActorThreadAlive = true;
 
@@ -123,6 +133,8 @@ public class GameSceneActorThreadWaitTest {
 
 		assertFalse(ready);
 		assertFalse(Actor.keepActorThreadAlive);
+		assertSame("processing state should stay true until the actor loop exits",
+				currentActor, currentActorField.get(null));
 		assertTrue("web scene switch check should not block, elapsed=" + elapsedMillis,
 				elapsedMillis < 500);
 	}
@@ -237,7 +249,7 @@ public class GameSceneActorThreadWaitTest {
 		MovingWaitChar actor = new MovingWaitChar();
 		CharSprite sprite = movingSpriteFor(actor);
 		Actor.add(actor);
-		Actor.keepActorThreadAlive = false;
+		Actor.requestThreadShutdown();
 
 		parkedActorThread = new Thread(Actor::process, "SHPD Actor Thread pre-stopped sprite wait test");
 		actorThreadField.set(null, parkedActorThread);
@@ -258,6 +270,76 @@ public class GameSceneActorThreadWaitTest {
 		assertFalse("actor must not act after cooperative shutdown is already requested",
 				actor.acted.get());
 		assertNull(currentActorField.get(null));
+		Actor.clear();
+	}
+
+	@Test
+	public void webSceneSwitchWaitsForBlobToFinishMidTickBeforeGasCanLookEmpty() throws Exception {
+		Gdx.app = new TestWebApplication();
+		Actor.clear();
+		Actor.keepActorThreadAlive = true;
+		Dungeon.level = new TestLevel();
+
+		CountDownLatch insideEvolve = new CountDownLatch(1);
+		CountDownLatch finishEvolve = new CountDownLatch(1);
+		BlockingBlob gas = new BlockingBlob(insideEvolve, finishEvolve);
+		gas.seed(Dungeon.level, 12, 30);
+		Dungeon.level.blobs.put(BlockingBlob.class, gas);
+		Actor.add(gas);
+
+		parkedActorThread = new Thread(Actor::process, "SHPD Actor Thread blob shutdown test");
+		actorThreadField.set(null, parkedActorThread);
+		parkedActorThread.start();
+
+		assertTrue("blob did not enter evolve", insideEvolve.await(1, TimeUnit.SECONDS));
+		assertSame(gas, currentActorField.get(null));
+		assertTrue("blob volume should be in the transient zero window", gas.volume == 0);
+
+		GameScene scene = new GameScene();
+		assertFalse(scene.readyForSceneSwitch());
+		assertFalse(Actor.keepActorThreadAlive);
+		assertSame("scene switching must still see the blob actor as processing until evolve completes",
+				gas, currentActorField.get(null));
+
+		finishEvolve.countDown();
+		parkedActorThread.join(1000);
+
+		assertFalse("blob actor thread should exit after the cooperative shutdown", parkedActorThread.isAlive());
+		assertFalse(Actor.processing());
+		assertTrue("gas should not be preserved in the transient zero-volume state", gas.volume > 0);
+		Actor.clear();
+	}
+
+	@Test
+	public void blobStorePreservesCurrentCellsDuringMidTickZeroVolumeWindow() throws Exception {
+		Actor.clear();
+		Actor.keepActorThreadAlive = true;
+		Dungeon.level = new TestLevel();
+
+		CountDownLatch insideEvolve = new CountDownLatch(1);
+		CountDownLatch finishEvolve = new CountDownLatch(1);
+		BlockingBlob gas = new BlockingBlob(insideEvolve, finishEvolve);
+		gas.seed(Dungeon.level, 12, 30);
+		Dungeon.level.blobs.put(BlockingBlob.class, gas);
+		Actor.add(gas);
+
+		parkedActorThread = new Thread(Actor::process, "SHPD Actor Thread blob save test");
+		actorThreadField.set(null, parkedActorThread);
+		parkedActorThread.start();
+
+		assertTrue("blob did not enter evolve", insideEvolve.await(1, TimeUnit.SECONDS));
+		assertTrue("blob volume should be in the transient zero window", gas.volume == 0);
+
+		Bundle bundle = new Bundle();
+		gas.storeInBundle(bundle);
+		BlockingBlob restored = new BlockingBlob(new CountDownLatch(0), new CountDownLatch(0));
+		restored.restoreFromBundle(bundle);
+
+		finishEvolve.countDown();
+		Actor.requestThreadShutdown();
+		parkedActorThread.join(1000);
+
+		assertTrue("mid-tick save should restore the visible gas cells", restored.volume > 0);
 		Actor.clear();
 	}
 
@@ -359,7 +441,7 @@ public class GameSceneActorThreadWaitTest {
 	private static class ShutdownDuringActActor extends Actor {
 		@Override
 		protected boolean act() {
-			Actor.keepActorThreadAlive = false;
+			Actor.requestThreadShutdown();
 			return true;
 		}
 	}
@@ -371,6 +453,49 @@ public class GameSceneActorThreadWaitTest {
 		protected boolean act() {
 			acted.set(true);
 			return false;
+		}
+	}
+
+	private static class BlockingBlob extends Blob {
+		private final CountDownLatch insideEvolve;
+		private final CountDownLatch finishEvolve;
+
+		private BlockingBlob(CountDownLatch insideEvolve, CountDownLatch finishEvolve) {
+			this.insideEvolve = insideEvolve;
+			this.finishEvolve = finishEvolve;
+		}
+
+		@Override
+		protected void evolve() {
+			insideEvolve.countDown();
+			try {
+				finishEvolve.await(1, TimeUnit.SECONDS);
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+			}
+			super.evolve();
+		}
+	}
+
+	private static class TestLevel extends Level {
+		private TestLevel() {
+			setSize(5, 5);
+			Arrays.fill(map, Terrain.EMPTY);
+			Arrays.fill(passable, true);
+			blobs = new java.util.HashMap<>();
+		}
+
+		@Override
+		protected boolean build() {
+			return true;
+		}
+
+		@Override
+		protected void createMobs() {
+		}
+
+		@Override
+		protected void createItems() {
 		}
 	}
 

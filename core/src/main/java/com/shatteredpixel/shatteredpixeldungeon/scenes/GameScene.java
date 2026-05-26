@@ -859,9 +859,8 @@ public class GameScene extends PixelScene {
 		if (actorThread != null && actorThread.isAlive()){
 			actorLifecycle = ActorLifecycle.STOPPING;
 			if (webParityLogging()) webParityLog(reason + " " + actorThreadSnapshot());
-			Actor.keepActorThreadAlive = false;
-			if (com.badlogic.gdx.Gdx.app != null && DeviceCompat.isWeb()) {
-				Actor.notifySpriteWaiters();
+			Actor.requestThreadShutdown();
+			if (isWebApp()) {
 				synchronized (actorThread) {
 					actorThread.notify();
 				}
@@ -879,6 +878,18 @@ public class GameScene extends PixelScene {
 			}
 			return true;
 		}
+		if (isWebApp()) {
+			if (interrupt) {
+				requestActorThreadStop("waitForActorThread web interrupt");
+			}
+			if (!Actor.processing()) {
+				return true;
+			}
+			if (webParityLogging()) {
+				webParityLog("waitForActorThread skipping wait on web. " + actorThreadSnapshot());
+			}
+			return false;
+		}
 		if (!Actor.processing()) {
 			if (interrupt) {
 				requestActorThreadStop("waitForActorThread stop parked actor thread");
@@ -888,16 +899,6 @@ public class GameScene extends PixelScene {
 						+ " interrupt=" + interrupt + " " + actorThreadSnapshot());
 			}
 			return true;
-		}
-		if (DeviceCompat.isWeb()) {
-			if (interrupt) {
-				requestActorThreadStop("waitForActorThread web nonblocking interrupt");
-			}
-			if (webParityLogging()) {
-				webParityLog("waitForActorThread web nonblocking incomplete ms=" + msToWait
-						+ " interrupt=" + interrupt + " " + actorThreadSnapshot());
-			}
-			return false;
 		}
 		synchronized (actorThread) {
 			long started = System.currentTimeMillis();
@@ -919,6 +920,10 @@ public class GameScene extends PixelScene {
 			}
 			return complete;
 		}
+	}
+
+	private static boolean isWebApp() {
+		return com.badlogic.gdx.Gdx.app != null && DeviceCompat.isWeb();
 	}
 	
 	@Override
