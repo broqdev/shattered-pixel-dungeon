@@ -43,8 +43,9 @@ public class WebIndexTemplateTest {
 		assertTrue(html.contains("function focusActiveGameSurface()"));
 		assertTrue(html.contains("offsetTop: {"));
 		assertTrue(html.contains("function installDirectStartHowlerPolicy()"));
-		assertTrue(html.contains("howler.usingWebAudio = false"));
-		assertTrue(html.contains("audio direct start html5 fallback"));
+		assertFalse(html.contains("howler.usingWebAudio = false"));
+		assertTrue(html.contains("howler.autoUnlock = true"));
+		assertTrue(html.contains("audio direct start webaudio policy"));
 
 		int loadStart = html.indexOf("function start()");
 		int loadListener = html.indexOf("window.addEventListener(\"load\", start);");

@@ -205,13 +205,16 @@
 
                 try {
                     howler.__shpdDirectStartAudioPolicy = true;
-                    howler.usingWebAudio = false;
-                    howler.autoUnlock = false;
+                    howler.autoUnlock = true;
                     howler.autoSuspend = false;
-                    logWebParity("audio direct start html5 fallback", {
+                    if (typeof howler.html5PoolSize === "number" && howler.html5PoolSize < 32) {
+                        howler.html5PoolSize = 32;
+                    }
+                    logWebParity("audio direct start webaudio policy", {
                         usingWebAudio: howler.usingWebAudio,
                         autoUnlock: howler.autoUnlock,
-                        autoSuspend: howler.autoSuspend
+                        autoSuspend: howler.autoSuspend,
+                        html5PoolSize: howler.html5PoolSize
                     });
                 } catch (error) {
                     logWebParity("audio direct start policy failed", {
