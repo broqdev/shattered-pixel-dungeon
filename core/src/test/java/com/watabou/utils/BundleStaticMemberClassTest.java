@@ -36,6 +36,7 @@ import java.util.Iterator;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
@@ -91,6 +92,21 @@ public class BundleStaticMemberClassTest {
 		bundle.put("inner_objects", Arrays.asList(new InnerBundlable()));
 
 		assertTrue(bundle.getCollection("inner_objects").isEmpty());
+	}
+
+	@Test
+	public void directPutSkipsBundlablesThatNeedOwningInstanceToRestore() {
+		Bundle bundle = new Bundle();
+		bundle.put("inner_object", new InnerBundlable());
+
+		assertFalse(bundle.contains("inner_object"));
+	}
+
+	@Test
+	public void restorableConstructorCheckKeepsStaticMemberClasses() {
+		assertTrue(Reflection.hasRestorableDefaultConstructor(ToxicGasRoom.ToxicGasSeed.class));
+		assertTrue(Reflection.hasRestorableDefaultConstructor(MagicalFireRoom.EternalFire.class));
+		assertFalse(Reflection.hasRestorableDefaultConstructor(InnerBundlable.class));
 	}
 
 	@Test

@@ -43,12 +43,28 @@ public class Reflection {
 			return false;
 		}
 	}
-	
+
+	public static boolean hasRestorableDefaultConstructor( Class cls ){
+		if (!hasDefaultConstructor(cls)) return false;
+
+		// TeaVM may report static member classes as non-static, so verify member
+		// classes by construction instead of rejecting by metadata alone.
+		return !isMemberClass(cls) || isStatic(cls) || newInstanceQuiet(cls) != null;
+	}
+
 	public static <T> T newInstance( Class<T> cls ){
 		try {
 			return ClassReflection.newInstance(cls);
 		} catch (Exception e) {
 			Game.reportException(e);
+			return null;
+		}
+	}
+
+	public static <T> T newInstanceQuiet( Class<T> cls ){
+		try {
+			return ClassReflection.newInstance(cls);
+		} catch (Exception e) {
 			return null;
 		}
 	}

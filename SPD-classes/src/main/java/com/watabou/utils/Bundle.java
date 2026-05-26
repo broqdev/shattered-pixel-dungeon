@@ -148,10 +148,8 @@ public class Bundle {
 		}
 
 		Class<?> cl = Reflection.forName( clName );
-		// Some backends misreport static nested classes as non-static member classes,
-		// so rely on the constructor shape needed for automatic restore instead.
-		if (cl != null && Reflection.hasDefaultConstructor(cl)) {
-			Bundlable object = (Bundlable) Reflection.newInstance(cl);
+		if (cl != null && Reflection.hasRestorableDefaultConstructor(cl)) {
+			Bundlable object = (Bundlable) Reflection.newInstanceQuiet(cl);
 			if (object != null) {
 				object.restoreFromBundle(this);
 				return object;
@@ -385,7 +383,7 @@ public class Bundle {
 	}
 
 	public void put( String key, Bundlable object ) {
-		if (object != null) {
+		if (object != null && Reflection.hasRestorableDefaultConstructor(object.getClass())) {
 			try {
 				data.put( key, putBundlable( object ).data );
 			} catch (JSONException e) {
@@ -479,7 +477,7 @@ public class Bundle {
 	public void put( String key, Collection<? extends Bundlable> collection ) {
 		JSONArray array = new JSONArray();
 		for (Bundlable object : collection) {
-			if (object != null && Reflection.hasDefaultConstructor(object.getClass())) {
+			if (object != null && Reflection.hasRestorableDefaultConstructor(object.getClass())) {
 				array.put(putBundlable(object).data);
 			}
 		}
