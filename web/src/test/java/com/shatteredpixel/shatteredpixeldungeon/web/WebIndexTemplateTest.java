@@ -84,6 +84,11 @@ public class WebIndexTemplateTest {
 		assertTrue(html.contains("function loadStoredRoomSessionForReconnect(normalizedRoomName, roomSecret, playerName)"));
 		assertTrue(html.contains("function loadStoredRoomSessionForActivePlayerReturn(normalizedRoomName, roomSecret, playerName)"));
 		assertTrue(html.contains("function loadStoredRoomSessionForWatchReturn(normalizedRoomName, roomSecret, playerName)"));
+		assertTrue(html.contains("function roomReturnDeadlineExpired(deadlineMs)"));
+		assertTrue(html.contains("function storedRoomSessionReconnectDeadlineMs(session)"));
+		assertTrue(html.contains("function markStoredRoomSessionReconnectDeadline(session, deadlineMs, reason)"));
+		assertTrue(html.contains("function activeRunSnapshotAvailableForReturn(session)"));
+		assertTrue(html.contains("function markStoredActiveRoomSessionReturnDeadline(config, deadlineMs, reason)"));
 		assertTrue(html.contains("function createFreshJoinSessionFromExpiredReconnect(expiredSession)"));
 		assertTrue(html.contains("function markLobbyParticipantDisconnected(runtime, participantId)"));
 		assertTrue(html.contains("function markLobbyOwnerDisconnected(runtime, participantId)"));
@@ -180,6 +185,7 @@ public class WebIndexTemplateTest {
 		assertTrue(html.contains("disconnect: function()"));
 		assertTrue(html.contains("finishRoom: function()"));
 		assertTrue(html.contains("function cleanupMultiplayerRoom(reason)"));
+		assertTrue(html.contains("function markActiveRoomReturnDeadline(reason)"));
 		assertTrue(html.contains("room.leave()"));
 		assertTrue(html.contains("window.clearInterval(state.retryIntervalId)"));
 		assertTrue(html.contains("window.addEventListener(\"pagehide\", cleanupMultiplayerRoomOnPageHide"));
@@ -418,6 +424,64 @@ public class WebIndexTemplateTest {
 		assertTrue(activeRuntime.contains("const remotePlayerId = peerPlayers.get(peerId) || state.activePeerParticipants.get(peerId);"));
 		assertTrue(activeRuntime.contains("&& !activePlayerHasLivePeer(remotePlayerId)"));
 		assertTrue(activeRuntime.contains("state.activePeerParticipants.delete(peerId);"));
+	}
+
+	@Test
+	public void storedRoomReturnsExpireBeforeReusingParticipantIdentity() throws IOException {
+		String html = readIndexTemplate();
+		String activeConfig = sectionBetween(html,
+				"function loadRoomActiveMultiplayerConfig()",
+				"function multiplayerUrlWithoutCloneFlag()");
+		String storageHelpers = sectionBetween(html,
+				"function removeMultiplayerRoomSession(session)",
+				"function storedRoomSessionMatchesIdentity(session, normalizedRoomName, roomSecret, playerName)");
+		String reconnectLoad = sectionBetween(html,
+				"function loadStoredRoomSessionForReconnect(normalizedRoomName, roomSecret, playerName)",
+				"function storedRoomSessionActivePlayerReturnCandidate(session,");
+		String activeLoad = sectionBetween(html,
+				"function loadStoredRoomSessionForActivePlayerReturn(normalizedRoomName, roomSecret, playerName)",
+				"function storedRoomSessionWatchReturnCandidate(session, normalizedRoomName, roomSecret, playerName)");
+		String restoreActive = sectionBetween(html,
+				"function restoreActiveRoomRunSnapshot(session)",
+				"function roomWatchReturnLaunchEventValues(session, config)");
+		String roomEntryCleanup = sectionBetween(html,
+				"function cleanupMultiplayerRoomRuntime(runtime, reason)",
+				"async function sendEncryptedRoomPayload(runtime, payload, peerId)");
+		String roomEntryTransport = sectionBetween(html,
+				"function startMultiplayerRoomTransport(session)",
+				"}).catch((error) => {");
+		String activeRuntime = sectionBetween(html,
+				"function installWebMultiplayer(launchConfig)",
+				"installWebMultiplayer();");
+
+		assertTrue(activeConfig.contains("roomReturnDeadlineExpired(config.activeReturnDeadlineMs)"));
+		assertTrue(activeConfig.contains("removeStoredActiveRoomSessionForConfig(config);"));
+		assertTrue(activeConfig.contains("storage.removeItem(MULTIPLAYER_ROOM_ACTIVE_SESSION_KEY);"));
+		assertTrue(storageHelpers.contains("const directDeadline = Number(session && session.reconnectDeadlineMs) || 0;"));
+		assertTrue(storageHelpers.contains("participant && participant.connected === false"));
+		assertTrue(storageHelpers.contains("return Number(participant.reconnectDeadlineMs) || 0;"));
+		assertTrue(storageHelpers.contains("session.reconnectDeadlineMs = deadlineMs;"));
+		assertTrue(storageHelpers.contains("session.reconnectDeadlineReason = String(reason || \"\");"));
+		assertTrue(reconnectLoad.contains("roomReturnDeadlineExpired(storedRoomSessionReconnectDeadlineMs(session))"));
+		assertTrue(reconnectLoad.contains("storage.removeItem(key);"));
+		assertTrue(reconnectLoad.indexOf("roomReturnDeadlineExpired(storedRoomSessionReconnectDeadlineMs(session))")
+				< reconnectLoad.indexOf("storedRoomSessionReconnectCandidate(session"));
+		assertTrue(activeLoad.contains("!activeRunSnapshotAvailableForReturn(session)"));
+		assertTrue(activeLoad.contains("removeActiveRunSnapshotForSession(session);"));
+		assertTrue(activeLoad.indexOf("!activeRunSnapshotAvailableForReturn(session)")
+				< activeLoad.indexOf("const savedAt = Number(session.savedAt || session.createdAt) || 0;"));
+		assertTrue(restoreActive.contains("roomReturnDeadlineExpired(activeReturnDeadlineMs(session, saved))"));
+		assertTrue(restoreActive.contains("Room reconnect expired. Join again."));
+		assertTrue(roomEntryCleanup.contains("window.removeEventListener(\"pagehide\", cleanupMultiplayerRoomEntryOnPageHide, true);"));
+		assertTrue(roomEntryCleanup.contains("markStoredRoomSessionReconnectDeadline(runtime.session,"));
+		assertTrue(roomEntryCleanup.contains("currentRoomReturnDeadlineMs(), reason);"));
+		assertTrue(roomEntryCleanup.contains("function cleanupMultiplayerRoomEntryOnPageHide()"));
+		assertTrue(roomEntryTransport.contains("window.addEventListener(\"pagehide\", cleanupMultiplayerRoomEntryOnPageHide"));
+		assertTrue(activeRuntime.contains("function markActiveRoomReturnDeadline(reason)"));
+		assertTrue(activeRuntime.contains("saveRoomActiveMultiplayerConfig(config);"));
+		assertTrue(activeRuntime.contains("markStoredActiveRoomSessionReturnDeadline(config, deadlineMs, reason);"));
+		assertTrue(activeRuntime.contains("markActiveRunSnapshotReturnDeadline(restoreKey, deadlineMs, reason);"));
+		assertTrue(activeRuntime.contains("markActiveRoomReturnDeadline(reason);"));
 	}
 
 	@Test

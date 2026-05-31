@@ -247,11 +247,13 @@ _Avoid_: timeout, timer, race clock
 - A **Room Disconnect** from a **Player Seat** clears that **Player Seat**'s **Ready State** before Leave cleanup completes.
 - A **Room Reconnect** before Leave cleanup preserves the same **Room Participant**.
 - A **Room Reconnect** before the **Reconnect Deadline** prevents Leave cleanup.
+- A **Room Reconnect** after browser refresh must happen before the **Reconnect Deadline**.
 - A **Room Reconnect** requires the same **Room Participant** and **Reconnect Token**.
 - A **Room Reconnect** can preserve **Room Owner** status.
 - A return after Leave cleanup completes is not a **Room Reconnect**.
 - A return after Leave cleanup completes creates a new **Room Participant**.
 - A return after Leave cleanup completes does not preserve **Room Owner** status, **Player Seat**, **Hero Choice**, or **Ready State**.
+- A matching **Room Name** and **Room Password** after Leave cleanup starts a **Room Join Request**, not a **Room Reconnect**.
 - A lost **Reconnect Token** prevents **Room Reconnect**.
 - A **Room Disconnect** can reserve room connection capacity until Leave cleanup completes.
 - A **Room Reconnect** uses the reserved room connection capacity.
