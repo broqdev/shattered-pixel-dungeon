@@ -50,11 +50,11 @@ public class TitleSceneMultiplayerEntryTest {
 
 	@Test
 	public void multiplayerMenuCanExposeRejoinAsTopLevelAction() {
-		assertEquals(TitleScene.MultiplayerRoomMenuAction.CREATE,
-				TitleScene.multiplayerRoomActionForMenuIndex(0, true));
-		assertEquals(TitleScene.MultiplayerRoomMenuAction.JOIN,
-				TitleScene.multiplayerRoomActionForMenuIndex(1, true));
 		assertEquals(TitleScene.MultiplayerRoomMenuAction.REJOIN,
+				TitleScene.multiplayerRoomActionForMenuIndex(0, true));
+		assertEquals(TitleScene.MultiplayerRoomMenuAction.CREATE,
+				TitleScene.multiplayerRoomActionForMenuIndex(1, true));
+		assertEquals(TitleScene.MultiplayerRoomMenuAction.JOIN,
 				TitleScene.multiplayerRoomActionForMenuIndex(2, true));
 		assertNull(TitleScene.multiplayerRoomActionForMenuIndex(2, false));
 		assertNull(TitleScene.multiplayerRoomActionForMenuIndex(3, true));

@@ -499,14 +499,23 @@ public class TitleScene extends PixelScene {
 	}
 
 	static MultiplayerRoomMenuAction multiplayerRoomActionForMenuIndex(int index, boolean rejoinAvailable) {
+		if (rejoinAvailable) {
+			if (index == 0) {
+				return MultiplayerRoomMenuAction.REJOIN;
+			}
+			if (index == 1) {
+				return MultiplayerRoomMenuAction.CREATE;
+			}
+			if (index == 2) {
+				return MultiplayerRoomMenuAction.JOIN;
+			}
+			return null;
+		}
 		if (index == 0) {
 			return MultiplayerRoomMenuAction.CREATE;
 		}
 		if (index == 1) {
 			return MultiplayerRoomMenuAction.JOIN;
-		}
-		if (rejoinAvailable && index == 2) {
-			return MultiplayerRoomMenuAction.REJOIN;
 		}
 		return null;
 	}
@@ -514,9 +523,9 @@ public class TitleScene extends PixelScene {
 	private static String[] multiplayerMenuOptions(boolean rejoinAvailable) {
 		if (rejoinAvailable) {
 			return new String[]{
+					Messages.get(TitleScene.class, "multiplayer_rejoin"),
 					Messages.get(TitleScene.class, "multiplayer_create"),
-					Messages.get(TitleScene.class, "multiplayer_join"),
-					Messages.get(TitleScene.class, "multiplayer_rejoin")
+					Messages.get(TitleScene.class, "multiplayer_join")
 			};
 		}
 		return new String[]{
@@ -753,14 +762,18 @@ public class TitleScene extends PixelScene {
 		}
 
 		private boolean isRejoinIndex(int index) {
-			return rejoinAvailable && index == 2;
+			return multiplayerRoomActionForMenuIndex(index, rejoinAvailable)
+					== MultiplayerRoomMenuAction.REJOIN;
 		}
 
 		private void hideRejoinOption() {
-			if (isRejoinIndex(2) && optionButtons.size() > 2) {
-				optionButtons.get(2).visible = false;
-				optionButtons.get(2).active = false;
-				optionButtons.get(2).enable(false);
+			for (int i = 0; i < optionButtons.size(); i++) {
+				if (isRejoinIndex(i)) {
+					optionButtons.get(i).visible = false;
+					optionButtons.get(i).active = false;
+					optionButtons.get(i).enable(false);
+					return;
+				}
 			}
 		}
 
