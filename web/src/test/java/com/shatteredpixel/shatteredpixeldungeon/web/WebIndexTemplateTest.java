@@ -82,6 +82,7 @@ public class WebIndexTemplateTest {
 		assertTrue(html.contains("MULTIPLAYER_ROOM_RECONNECT_GRACE_MS"));
 		assertTrue(html.contains("function deriveMultiplayerReconnectTokenProof(roomSecret, participantId, reconnectToken)"));
 		assertTrue(html.contains("function loadStoredRoomSessionForReconnect(normalizedRoomName, roomSecret, playerName)"));
+		assertTrue(html.contains("function loadStoredRoomSessionForActivePlayerReturn(normalizedRoomName, roomSecret, playerName)"));
 		assertTrue(html.contains("function loadStoredRoomSessionForWatchReturn(normalizedRoomName, roomSecret, playerName)"));
 		assertTrue(html.contains("function createFreshJoinSessionFromExpiredReconnect(expiredSession)"));
 		assertTrue(html.contains("function markLobbyParticipantDisconnected(runtime, participantId)"));
@@ -146,7 +147,7 @@ public class WebIndexTemplateTest {
 		assertTrue(html.contains("action === \"floor-turns\""));
 		assertTrue(html.contains("action === \"floor-infinite\""));
 		assertTrue(html.contains("action === \"ready-toggle\""));
-		assertTrue(html.contains("action === \"role-toggle\""));
+		assertFalse(html.contains("action === \"role-toggle\""));
 		assertTrue(html.contains("action === \"hero-choice\""));
 		assertTrue(html.contains("intent.action === \"leave\""));
 		assertTrue(html.contains("action === \"start-toggle\""));
@@ -220,7 +221,7 @@ public class WebIndexTemplateTest {
 		assertTrue(html.contains("Watcher keyframe restore failed"));
 		assertTrue(html.contains("switchWatchTarget"));
 		assertTrue(html.contains("continueAsWatcher"));
-		assertTrue(html.contains("Continuing as watcher for player"));
+		assertFalse(html.contains("Continuing as watcher for player"));
 		assertTrue(html.contains("watchReturn"));
 		assertTrue(html.contains("rejectWatchReturnRoomFull"));
 		assertTrue(html.contains("announceReplayEvent"));
@@ -281,49 +282,51 @@ public class WebIndexTemplateTest {
 	}
 
 	@Test
-	public void playerWatchReturnUsesStoredActiveRoomSessionOnlyAsWatcher() throws IOException {
+	public void playerWatchReturnStoredSessionDoesNotCreateWatcherEntry() throws IOException {
 		String html = readIndexTemplate();
-		String storageHelpers = sectionBetween(html,
-				"function removeMultiplayerRoomSession(session)",
-				"function storedRoomSessionReconnectCandidate");
-		String roomBridge = sectionBetween(html,
-				"function storedRoomSessionWatchReturnCandidate",
-				"const multiplayerRoomEvents = [];");
-		String launchHelpers = sectionBetween(html,
-				"function playerSeatOrderForWatchReturn(snapshot, returningParticipantId)",
-				"function sendRoomLaunch(runtime, peerId)");
-		String activeRuntime = sectionBetween(html,
-				"function installWebMultiplayer(launchConfig)",
-				"import(MULTIPLAYER_TRYSTERO_MODULE)");
+		String roomCreation = sectionBetween(html,
+				"async function createMultiplayerRoomSession(mode, input)",
+				"const participantId =");
+		String roomTransport = sectionBetween(html,
+				"function startMultiplayerRoomTransport(session)",
+				"cleanupMultiplayerRoomEntry(\"new-room-request\")");
+			String activeRuntime = sectionBetween(html,
+					"function installWebMultiplayer(launchConfig)",
+					"import(MULTIPLAYER_TRYSTERO_MODULE)");
+			String roomRequest = sectionBetween(html,
+					"return createMultiplayerRoomSession(mode, input).then((session) => {",
+					"}).catch((error) => {");
 
-		assertTrue(roomBridge.contains("session.phase === \"active\""));
-		assertTrue(roomBridge.contains("session.snapshot.roomPhase === \"active\""));
-		assertTrue(roomBridge.contains("session.watchReturnEligible === true"));
-		assertTrue(roomBridge.contains("(Number(session.watchReturnEligibleAfterMs) || 0) <= Date.now()"));
-		assertTrue(roomBridge.contains("watchReturnSession.mode = \"watch-return\""));
-		assertFalse(roomBridge.contains("watchReturnSession.phase = \"watch-return\""));
-		assertTrue(storageHelpers.contains("function removeStoredActiveRoomSessionForConfig(config)"));
-		assertTrue(storageHelpers.contains("session.transportRoomId + \".active\" !== config.roomId"));
-		assertTrue(storageHelpers.contains("function markStoredActiveRoomSessionWatchReturnEligible(config, delayMs, reason)"));
-		assertTrue(storageHelpers.contains("session.watchReturnEligible = true"));
-		assertTrue(storageHelpers.contains("session.watchReturnEligibleAfterMs = Date.now() + Math.max(0, Number(delayMs) || 0)"));
-		assertTrue(launchHelpers.contains("\"watcher\","));
-		assertTrue(launchHelpers.contains("participantDisplayColor(participant, session.participantColor)"));
-		assertTrue(launchHelpers.contains("watchReturn: true"));
-		assertTrue(launchHelpers.contains("playerSeatOrderForWatchReturn(snapshot, session.participantId)"));
-		assertTrue(launchHelpers.contains("function roomWatchReturnLaunchEventValues(session, config)"));
-		assertTrue(launchHelpers.contains("config.watchReturnLaunchEventValues = roomWatchReturnLaunchEventValues(session, config)"));
-		assertTrue(launchHelpers.contains("startPlayerWatchReturn(session)"));
-		assertTrue(activeRuntime.contains("watchReturn: launchConfig ? launchConfig.watchReturn === true : false"));
-		assertTrue(activeRuntime.contains("watchReturnLaunchEventValues: launchConfig"));
-		assertTrue(activeRuntime.contains("function rejectWatchReturnRoomFull(peerPlayers)"));
-		assertTrue(activeRuntime.contains("function watchReturnTargetPresent(peerPlayers)"));
-		assertTrue(activeRuntime.contains("function rejectWatchReturnNoActiveTarget()"));
-		assertTrue(activeRuntime.contains("function acceptWatchReturnIfNotFull(peerPlayers)"));
-		assertTrue(activeRuntime.contains("pushMultiplayerRoomEvent(\"room-error\", [\"No active player to watch.\"])"));
-		assertTrue(activeRuntime.contains("removeMultiplayerRoomSession(roomSession)"));
-		assertTrue(activeRuntime.contains("removeStoredActiveRoomSessionForConfig(activeRoomSessionConfig())"));
-		assertTrue(activeRuntime.contains("cleanupMultiplayerRoom(\"watch-return-no-target\")"));
+			assertTrue(html.contains("function storedRoomSessionActivePlayerReturnCandidate(session,"));
+			assertTrue(html.contains("playerSeatIndexForParticipant(session.snapshot, session.participantId) >= 0"));
+			assertTrue(roomCreation.contains("const activeSession = loadStoredRoomSessionForActivePlayerReturn("));
+			assertTrue(roomCreation.contains("activeSession.mode = \"active-return\";"));
+			assertTrue(roomCreation.contains("activeSession.phase = \"active\";"));
+			assertTrue(roomCreation.contains("activeSession.watchReturnEligible = false;"));
+			assertFalse(roomCreation.contains("loadStoredRoomSessionForWatchReturn"));
+			assertFalse(roomCreation.contains("watchReturnSession.mode = \"watch-return\""));
+			assertTrue(roomRequest.contains("session.mode === \"active-return\" && session.phase === \"active\""));
+			assertTrue(roomRequest.contains("restoreActiveRoomRunSnapshot(session);"));
+			assertTrue(roomRequest.contains("saveRoomActiveMultiplayerConfig(launchedMultiplayerConfigForSession(session));"));
+			assertTrue(roomRequest.contains("window.location.replace(multiplayerUrlWithoutCloneFlag())"));
+			assertFalse(roomRequest.contains("pushRoomLaunchEvent(session);"));
+			assertTrue(roomRequest.indexOf("restoreActiveRoomRunSnapshot(session);")
+					< roomRequest.indexOf("startMultiplayerRoomTransport(session);"));
+			assertTrue(html.contains("const MULTIPLAYER_ACTIVE_RETURN_SLOT = 7;"));
+			assertTrue(html.contains("function restoreActiveRoomRunSnapshot(session)"));
+			assertTrue(html.contains("restoreBrowserDataSnapshotToSlot("));
+			assertTrue(roomTransport.contains("Watcher return is disabled."));
+		assertTrue(roomTransport.contains("removeMultiplayerRoomSession(session);"));
+		assertTrue(html.contains("function startPlayerWatchReturn(session) {\n"
+				+ "                pushMultiplayerRoomEvent(\"room-error\", [\"Watcher return is disabled.\"]);"));
+		assertTrue(activeRuntime.contains("continueAsWatcher: function(targetId) {\n"
+				+ "                        return false;\n"
+				+ "                    }"));
+		assertTrue(activeRuntime.contains("saveActiveRunSnapshot: function(sourceSlot, snapshotFilesJson)"));
+		assertTrue(activeRuntime.contains("markWatchReturnEligible: function(reason) {\n"
+				+ "                        return false;\n"
+				+ "                    }"));
+		assertFalse(activeRuntime.contains("markActiveRoomSessionWatchReturnEligible(0, \"continue-watch\")"));
 		assertTrue(activeRuntime.contains("debugInjectPeerHello: function(remotePlayerId, role, mirrorState)"));
 		assertTrue(activeRuntime.contains("if (!state.multiplayerDebug || typeof state.debugInjectPeerHello !== \"function\")"));
 		assertTrue(activeRuntime.contains("return state.debugInjectPeerHello(remotePlayerId, role, mirrorState);"));
@@ -356,10 +359,10 @@ public class WebIndexTemplateTest {
 		assertTrue(html.contains("payload.mirrorState.playerId = String(payload.mirrorState.playerId || remotePlayerId);"));
 		assertTrue(html.contains("function handleHello(data, peerId)"));
 		assertTrue(activeRuntime.contains("function markActiveRoomSessionWatchReturnEligible(delayMs, reason)"));
-		assertTrue(activeRuntime.contains("markActiveRoomSessionWatchReturnEligible(0, \"continue-watch\")"));
+		assertFalse(activeRuntime.contains("markActiveRoomSessionWatchReturnEligible(0, \"continue-watch\")"));
 		assertTrue(activeRuntime.contains("markWatchReturnEligible: function(reason)"));
-		assertTrue(activeRuntime.contains("markActiveRoomSessionWatchReturnEligible(0, \"manual\")"));
-		assertTrue(activeRuntime.contains("MULTIPLAYER_ROOM_RECONNECT_GRACE_MS, \"disconnect-grace\""));
+		assertFalse(activeRuntime.contains("markActiveRoomSessionWatchReturnEligible(0, \"manual\")"));
+		assertFalse(activeRuntime.contains("MULTIPLAYER_ROOM_RECONNECT_GRACE_MS, \"disconnect-grace\""));
 		assertTrue(activeRuntime.contains("for (const disconnectedPlayerId of state.activeDisconnectedPlayers.values())"));
 		assertTrue(html.contains("state.retryIntervalId = window.setInterval(() => {\n"
 				+ "                        sendHelloIfReady();"));
@@ -411,6 +414,9 @@ public class WebIndexTemplateTest {
 		assertTrue(activeRuntime.contains("await verifyActivePayload(\"hello\", data, peerId, \"playerId\")"));
 		assertTrue(activeRuntime.contains("await verifyActivePayload(\"floor-progress\", data, peerId, \"playerId\")"));
 		assertTrue(activeRuntime.contains("await verifyActivePayload(\"replay\", data, peerId, \"playerId\")"));
+		assertTrue(activeRuntime.contains("function activePlayerHasLivePeer(remotePlayerId)"));
+		assertTrue(activeRuntime.contains("const remotePlayerId = peerPlayers.get(peerId) || state.activePeerParticipants.get(peerId);"));
+		assertTrue(activeRuntime.contains("&& !activePlayerHasLivePeer(remotePlayerId)"));
 		assertTrue(activeRuntime.contains("state.activePeerParticipants.delete(peerId);"));
 	}
 
@@ -614,6 +620,9 @@ public class WebIndexTemplateTest {
 		String reconnectHandler = sectionBetween(html,
 				"if (payload.type === \"room-reconnect-request\"",
 				"if (payload.type === \"room-join-request\" && session.phase === \"lobby\"");
+		String reconnectApply = sectionBetween(html,
+				"function applyParticipantReconnect(runtime, payload, peerId)",
+				"function occupiedPlayerSeats(snapshot)");
 		String reconnectRejected = sectionBetween(html,
 				"if (payload.type === \"room-reconnect-rejected\"",
 				"if (payload.type === \"room-join-rejected\"");
@@ -634,6 +643,9 @@ public class WebIndexTemplateTest {
 		assertTrue(storedReconnect.contains("} else if (!storedSession.reconnectTokenProof)"));
 		assertTrue(reconnectHandler.contains("session.roomOwnerParticipantId === session.participantId"));
 		assertTrue(reconnectHandler.contains("String(payload.targetParticipantId || \"\") === session.snapshot.roomOwnerParticipantId"));
+		assertTrue(reconnectApply.contains("participant.connected = true;"));
+		assertFalse(reconnectApply.contains("participant.role = \"watcher\""));
+		assertFalse(reconnectApply.contains("snapshot.watcherIds.push"));
 		assertTrue(reconnectReasons.contains("function reconnectRejectedReasonIsExpired(reason)"));
 		assertTrue(reconnectReasons.contains("normalized === \"reconnect expired\""));
 		assertTrue(reconnectReasons.contains("normalized === \"reconnect expired. join again.\""));
@@ -780,14 +792,14 @@ public class WebIndexTemplateTest {
 	}
 
 	@Test
-	public void roomCapacityAndRoleTransitionsUseParticipantAndSeatLimits() throws IOException {
+	public void roomCapacityUsesPlayableSeatLimit() throws IOException {
 		String html = readIndexTemplate();
 		String join = sectionBetween(html,
 				"function addParticipantToRoomSnapshot(snapshot, participant)",
 				"function validHeroChoice(heroChoice)");
 		String intent = sectionBetween(html,
-				"} else if (intent.action === \"role-toggle\")",
-				"} else if (intent.action === \"hero-choice\")");
+				"if (intent.action === \"ready-toggle\")",
+				"\n                if (result.ok)");
 		String lobby = sectionBetween(html,
 				"function pushRoomLobbyEvent(session)",
 				"function cleanupMultiplayerRoomEntry(reason)");
@@ -795,17 +807,15 @@ public class WebIndexTemplateTest {
 				"if (payload.type === \"room-join-rejected\"",
 				"function startMultiplayerRoomTransport(session)");
 
+		assertTrue(html.contains("const MULTIPLAYER_ROOM_MAX_CONNECTIONS = 4;"));
 		assertTrue(join.contains("snapshot.participants.length >= MULTIPLAYER_ROOM_MAX_CONNECTIONS"));
 		assertTrue(join.contains("const seat = firstOpenSeat(snapshot);"));
-		assertTrue(join.contains("participant.role = \"watcher\";"));
-		assertTrue(join.contains("snapshot.watcherIds.push(participant.participantId);"));
+		assertTrue(join.contains("seat < 0 || snapshot.participants.length >= MULTIPLAYER_ROOM_MAX_CONNECTIONS"));
+		assertTrue(join.contains("participant.role = \"player\";"));
+		assertFalse(join.contains("participant.role = \"watcher\";"));
+		assertFalse(join.contains("snapshot.watcherIds.push(participant.participantId);"));
 		assertTrue(join.contains("snapshot.capacity.activeConnections = snapshot.participants.length;"));
-		assertTrue(intent.contains("participant.role = \"watcher\";"));
-		assertTrue(intent.contains("addWatcherId(snapshot, participantId);"));
-		assertTrue(intent.contains("const openSeat = firstOpenSeat(snapshot);"));
-		assertTrue(intent.contains("result = { ok: false, reason: \"player seats full\" };"));
-		assertTrue(intent.contains("removeWatcherId(snapshot, participantId);"));
-		assertTrue(intent.contains("participant.role = \"player\";"));
+		assertFalse(intent.contains("role-toggle"));
 		assertTrue(lobby.contains("participants.length || 1"));
 		assertTrue(lobby.contains("MULTIPLAYER_ROOM_MAX_PLAYER_SEATS"));
 		assertTrue(lobby.contains("values.push(watchers.length);"));
@@ -883,7 +893,8 @@ public class WebIndexTemplateTest {
 				"import(MULTIPLAYER_TRYSTERO_MODULE)");
 
 		assertTrue(roomBridge.contains("MULTIPLAYER_ROOM_DEV_URL_ACTIONS"));
-		assertTrue(roomBridge.contains("\"ready-toggle\", \"role-toggle\", \"hero-choice\", \"floor-turns\""));
+		assertTrue(roomBridge.contains("\"ready-toggle\", \"hero-choice\", \"floor-turns\""));
+		assertFalse(roomBridge.contains("\"role-toggle\""));
 		assertTrue(roomBridge.contains("\"floor-infinite\", \"wait-connections\", \"start-toggle\", \"leave\""));
 		assertTrue(devUrlRunner.contains("roomMode"));
 		assertTrue(devUrlRunner.contains("roomActions=action[:value],..."));

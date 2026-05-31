@@ -370,8 +370,8 @@ public class WebMultiplayerFloorChaseTest {
 		assertTrue(platform.lastReplayMessage.contains("\"peerState\""));
 		assertTrue(platform.lastReplayMessage.contains("\"gameOver\":true"));
 		assertTrue(platform.lastReplayMessage.contains("\"state\":\"game-over\""));
-		assertEquals(1, platform.watchReturnEligibleCount);
-		assertEquals("game-over", platform.watchReturnEligibleReason);
+		assertEquals(0, platform.watchReturnEligibleCount);
+		assertEquals(null, platform.watchReturnEligibleReason);
 		assertFalse(WebMultiplayer.canContinueToWatch());
 
 		assertFalse(WebMultiplayer.continueToWatch());
@@ -379,7 +379,7 @@ public class WebMultiplayerFloorChaseTest {
 	}
 
 	@Test
-	public void continueToWatchUsesFirstLivePlayerSeatOrder() {
+	public void continueToWatchIsDisabledWhileWatcherFlowIsPaused() {
 		platform.playerSeatOrder = "3,2";
 		WebMultiplayer.receiveReplayEvent("2", 1, "status", 1, 0, 42,
 				"{\"peerState\":{\"gameOver\":false},\"peerBuffs\":[]}");
@@ -387,21 +387,21 @@ public class WebMultiplayerFloorChaseTest {
 				"{\"peerState\":{\"gameOver\":false},\"peerBuffs\":[]}");
 
 		assertTrue(WebMultiplayer.onLocalGameOver());
-		assertTrue(WebMultiplayer.canContinueToWatch());
-		assertTrue(WebMultiplayer.continueToWatch());
+		assertFalse(WebMultiplayer.canContinueToWatch());
+		assertFalse(WebMultiplayer.continueToWatch());
 
-		assertEquals("3", platform.continueWatchTarget);
+		assertEquals(null, platform.continueWatchTarget);
 	}
 
 	@Test
-	public void knownRoomWinnerSuppressesContinueToWatch() {
+	public void knownRoomWinnerKeepsContinueToWatchDisabled() {
 		WebMultiplayer.receiveReplayEvent("2", 1, "status", 1, 0, 42,
 				"{\"peerState\":{\"gameOver\":false},\"peerBuffs\":[]}");
 		WebMultiplayer.receiveReplayEvent("3", 1, "status", 1, 0, 43,
 				"{\"peerState\":{\"gameOver\":false},\"peerBuffs\":[]}");
 
 		assertTrue(WebMultiplayer.onLocalGameOver());
-		assertTrue(WebMultiplayer.canContinueToWatch());
+		assertFalse(WebMultiplayer.canContinueToWatch());
 
 		sendWinnerClaim("2", 2, 8, "winner");
 
@@ -450,14 +450,14 @@ public class WebMultiplayerFloorChaseTest {
 	}
 
 	@Test
-	public void knownRoomNoWinnerSuppressesContinueToWatch() {
+	public void knownRoomNoWinnerKeepsContinueToWatchDisabled() {
 		WebMultiplayer.receiveReplayEvent("2", 1, "status", 1, 0, 42,
 				"{\"peerState\":{\"gameOver\":false},\"peerBuffs\":[]}");
 		WebMultiplayer.receiveReplayEvent("3", 1, "status", 1, 0, 43,
 				"{\"peerState\":{\"gameOver\":false},\"peerBuffs\":[]}");
 
 		assertTrue(WebMultiplayer.onLocalGameOver());
-		assertTrue(WebMultiplayer.canContinueToWatch());
+		assertFalse(WebMultiplayer.canContinueToWatch());
 
 		WebMultiplayer.receiveReplayEvent("3", 2, "status", 1, 0, 43,
 				"{\"peerState\":{\"gameOver\":true},\"roomNoWinner\":true,\"peerBuffs\":[]}");
@@ -782,8 +782,8 @@ public class WebMultiplayerFloorChaseTest {
 		assertEquals("status", platform.lastReplayKind);
 		assertTrue(platform.lastReplayMessage.contains("\"gameOver\":true"));
 		assertTrue(platform.lastReplayMessage.contains("\"state\":\"left\""));
-		assertEquals(1, platform.watchReturnEligibleCount);
-		assertEquals("left", platform.watchReturnEligibleReason);
+		assertEquals(0, platform.watchReturnEligibleCount);
+		assertEquals(null, platform.watchReturnEligibleReason);
 		assertEquals(1, platform.disconnectCount);
 	}
 

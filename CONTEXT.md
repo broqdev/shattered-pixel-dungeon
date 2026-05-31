@@ -37,7 +37,7 @@ The participant secret that proves a returning connection can reclaim the same R
 _Avoid_: player name, room password, room id
 
 **Player Watch Return**:
-The return of a Playable Player eliminated by disconnect timeout as a Watcher in the same active room.
+A disabled return path where a Playable Player eliminated by disconnect timeout would return as a Watcher in the same active room.
 _Avoid_: late join, live reconnect, new watcher
 
 **Room Password**:
@@ -228,7 +228,7 @@ _Avoid_: timeout, timer, race clock
 
 - A **Room Host** can provide one **Snapshot Clone** to each **Joiner**.
 - A **Room Owner** is distinct from a **Room Host**.
-- A **Room Owner** can be a **Playable Player** or a **Watcher**.
+- A **Room Owner** is a **Playable Player** in the normal room UI flow.
 - A **Room Owner** controls lobby settings before the multiplayer game starts.
 - A **Room Owner** is the only participant who changes lobby rules, starts the countdown, or cancels an active countdown.
 - A **Player Seat** does not reserve or require a **Saved Game**.
@@ -262,16 +262,11 @@ _Avoid_: timeout, timer, race clock
 - A **Room Winner Claim** can establish a **Room Winner**.
 - A **Room Winner Claim** must come from a connected live **Playable Player**.
 - Competing **Room Winner Claims** resolve deterministically.
-- A **Playable Player** eliminated by disconnect timeout can use **Player Watch Return**.
-- A **Player Watch Return** keeps the same **Room Participant** identity.
-- A **Player Watch Return** keeps the same **Player Name** and **Participant Color**.
-- A **Player Watch Return** does not restore **Player Seat**, **Hero Choice**, **Ready State**, or live **Playable Player** status.
-- A **Player Watch Return** counts toward the room's connection limit while connected.
-- A **Player Watch Return** is rejected when the room has no open connection capacity.
+- **Player Watch Return** is not available while the normal room UI flow is playable-seat-only.
 - A **Room Owner Transfer** happens when the current **Room Owner** leaves or disconnects before the multiplayer game starts.
 - A **Room Owner Transfer** caused by **Room Disconnect** happens only after Leave cleanup.
 - A **Room Reconnect** before Leave cleanup prevents **Room Owner Transfer**.
-- A **Room Owner Transfer** chooses one deterministic-random remaining connected room participant, including **Watchers**.
+- A **Room Owner Transfer** chooses one deterministic-random remaining connected **Room Participant**.
 - A **Room Owner Transfer** has one room-wide result.
 - A disconnected **Room Participant** is not eligible for **Room Owner Transfer**.
 - A **Room Owner Transfer** requires at least one connected remaining **Room Participant**.
@@ -327,16 +322,10 @@ _Avoid_: timeout, timer, race clock
 - A **Player Name** does not prove **Room Participant** identity.
 - A multiplayer room has up to four **Player Seats**.
 - A **Room Participant** enters the first open **Player Seat** by default.
-- A **Room Participant** enters as a **Watcher** by default when no **Player Seat** is open.
-- Before the multiplayer game starts, a room can remain open with only **Watchers** if at least one **Room Participant** is connected.
+- A **Room Join Request** is rejected when no **Player Seat** is open.
+- The normal room UI flow does not create **Watchers** from full-room joins.
 - A multiplayer game cannot start without an occupied **Player Seat**.
-- Before the multiplayer game starts, a **Watcher** can move into an open **Player Seat**.
-- A **Watcher** moving into a **Player Seat** uses the first open **Player Seat**.
-- A **Watcher** moving into a **Player Seat** starts without **Ready State**.
-- A **Watcher** moving into a **Player Seat** gets that **Player Seat**'s default **Hero Choice**.
-- A **Watcher** moving into a **Player Seat** can keep **Room Owner** status.
-- A **Watcher** cannot move into a **Player Seat** when every **Player Seat** is occupied.
-- A seatless **Watcher** has no **Hero Choice**.
+- A **Room Participant** cannot switch between **Playable Player** and **Watcher** in the normal room UI flow.
 - A **Ready State** belongs to a **Player Seat**.
 - A **Watcher** has no **Ready State**.
 - A **Room Reconnect** does not restore **Ready State**.
@@ -396,6 +385,7 @@ _Avoid_: timeout, timer, race clock
 - An **In-Game Player List** shows **Playable Players**.
 - An **In-Game Player List** can show each **Playable Player**'s **Player Name**, **Participant Color**, **Peer Appearance**, current health, and **Peer Buffs**.
 - An **In-Game Player List** can keep non-live **Playable Players** visible.
+- A **Room Disconnect** before the **Reconnect Deadline** makes the disconnected **Playable Player** non-live in the **In-Game Player List**.
 - Non-live **Playable Players** in the **In-Game Player List** are not selectable as new **Watch Targets**.
 - In **Watcher View**, selecting a **Playable Player** in the **In-Game Player List** changes the **Watch Target**.
 - A **Watcher** entering gameplay without an explicit **Watch Target** defaults to the first live **Player Seat** by seat order.
@@ -415,6 +405,7 @@ _Avoid_: timeout, timer, race clock
 
 - "multiplayer" does not mean shared combat or shared actions in this prototype; it means independent local runs connected by **Floor Notices** and the **Floor Chase**.
 - In lobby wording, "host" means **Room Owner**; **Room Host** remains the URL `id=1` source-run role.
+- "non-player join" means entering as a **Watcher**; resolved: the normal room UI flow rejects the join instead.
 - In watcher URLs, `id` names the **Watcher** and `watch` names the **Watch Target**.
 - A **Watcher View** can show inventory information, but inventory actions do not control the watched run.
 - In a **Watcher View**, the **Watch Target** owns camera position, zoom, and view focus.

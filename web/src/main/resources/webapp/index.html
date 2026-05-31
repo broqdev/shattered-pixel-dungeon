@@ -864,7 +864,7 @@
                 return new Set(raw.split("\n").filter((fileName) => fileName.length > 0));
             }
 
-            function restoreBrowserDataSnapshotToWatcherSlot(payload, sourceSlot, targetSlot) {
+            function restoreBrowserDataSnapshotToSlot(payload, sourceSlot, targetSlot, slotLabel) {
                 const validated = validateBrowserDataPayload(payload);
                 const sourceFolder = browserDataGameFolder(sourceSlot);
                 const targetFolder = browserDataGameFolder(targetSlot);
@@ -906,11 +906,15 @@
 
                 return {
                     success: true,
-                    message: "Restored Browser Data Snapshot to watcher slot.",
+                    message: "Restored Browser Data Snapshot to " + (slotLabel || "target") + " slot.",
                     localStorageKeys: remappedEntries.length + 1,
                     indexedDbRecords: 0,
                     bytes: browserDataBackupByteLength(JSON.stringify(payload))
                 };
+            }
+
+            function restoreBrowserDataSnapshotToWatcherSlot(payload, sourceSlot, targetSlot) {
+                return restoreBrowserDataSnapshotToSlot(payload, sourceSlot, targetSlot, "watcher");
             }
 
             function browserDataDigestHash(value) {
@@ -1111,8 +1115,9 @@
             const MULTIPLAYER_RESTORE_KEY_PREFIX = "shpd.multiplayer.snapshotRestored.";
             const MULTIPLAYER_WATCHER_RESTORE_KEY_PREFIX = "shpd.multiplayer.watcherKeyframe.";
             const MULTIPLAYER_WATCHER_SLOT = 0;
+            const MULTIPLAYER_ACTIVE_RETURN_SLOT = 7;
             const MULTIPLAYER_ROOM_PROTOCOL_VERSION = 1;
-            const MULTIPLAYER_ROOM_MAX_CONNECTIONS = 6;
+            const MULTIPLAYER_ROOM_MAX_CONNECTIONS = 4;
             const MULTIPLAYER_ROOM_MAX_PLAYER_SEATS = 4;
             const MULTIPLAYER_ROOM_SOURCE_ROOM_UI = "room-ui";
             const MULTIPLAYER_ROOM_SOURCE_DEV_URL = "dev-url";
@@ -1130,7 +1135,7 @@
             const MULTIPLAYER_ROOM_DEFAULT_FLOOR_CHASE_TURNS = 40;
             const MULTIPLAYER_ROOM_HERO_CHOICES = ["WARRIOR", "MAGE", "ROGUE", "HUNTRESS", "DUELIST", "CLERIC"];
             const MULTIPLAYER_ROOM_DEV_URL_ACTIONS = [
-                "ready-toggle", "role-toggle", "hero-choice", "floor-turns",
+                "ready-toggle", "hero-choice", "floor-turns",
                 "floor-infinite", "wait-connections", "start-toggle", "leave"
             ];
             const MULTIPLAYER_ROOM_DEV_URL_ACTION_RETRY_MS = 100;
@@ -1173,6 +1178,9 @@
                     return false;
                 },
                 requestWatcherKeyframe: function() {
+                },
+                saveActiveRunSnapshot: function() {
+                    return false;
                 },
                 switchWatchTarget: function() {
                     return false;
@@ -2111,6 +2119,54 @@
                 return bestSession;
             }
 
+            function storedRoomSessionActivePlayerReturnCandidate(session,
+                    normalizedRoomName, roomSecret, playerName) {
+                return storedRoomSessionMatchesIdentity(session, normalizedRoomName, roomSecret, playerName)
+                        && session.intentionalLeave !== true
+                        && session.phase === "active"
+                        && !!session.participantId
+                        && !!session.snapshot
+                        && session.snapshot.roomPhase === "active"
+                        && playerSeatIndexForParticipant(session.snapshot, session.participantId) >= 0;
+            }
+
+            function loadStoredRoomSessionForActivePlayerReturn(normalizedRoomName, roomSecret, playerName) {
+                const storage = multiplayerSessionStorage();
+                if (!storage) {
+                    return null;
+                }
+                const keys = [];
+                const lastKey = storage.getItem(MULTIPLAYER_ROOM_LAST_SESSION_KEY);
+                if (lastKey) {
+                    keys.push(lastKey);
+                }
+                for (let i = 0; i < storage.length; i++) {
+                    const key = storage.key(i);
+                    if (key && key.startsWith(MULTIPLAYER_ROOM_SESSION_KEY_PREFIX)
+                            && keys.indexOf(key) === -1) {
+                        keys.push(key);
+                    }
+                }
+                let bestSession = null;
+                let bestSavedAt = -1;
+                for (const key of keys) {
+                    try {
+                        const session = JSON.parse(storage.getItem(key) || "null");
+                        if (!storedRoomSessionActivePlayerReturnCandidate(session,
+                                normalizedRoomName, roomSecret, playerName)) {
+                            continue;
+                        }
+                        const savedAt = Number(session.savedAt || session.createdAt) || 0;
+                        if (!bestSession || savedAt > bestSavedAt) {
+                            bestSession = session;
+                            bestSavedAt = savedAt;
+                        }
+                    } catch (error) {
+                    }
+                }
+                return bestSession;
+            }
+
             function storedRoomSessionWatchReturnCandidate(session, normalizedRoomName, roomSecret, playerName) {
                 return !!session
                         && session.protocolVersion === MULTIPLAYER_ROOM_PROTOCOL_VERSION
@@ -2243,16 +2299,20 @@
                         saveMultiplayerRoomSession(storedSession);
                         return storedSession;
                     }
-                    const watchReturnSession = loadStoredRoomSessionForWatchReturn(
+                    const activeSession = loadStoredRoomSessionForActivePlayerReturn(
                             validation.normalizedRoomName, secret.text, validation.playerName);
-                    if (watchReturnSession) {
-                        watchReturnSession.mode = "watch-return";
-                        watchReturnSession.roomName = validation.roomName;
-                        watchReturnSession.playerName = validation.playerName;
-                        watchReturnSession.transportRoomId = transportRoomId;
-                        await ensureMultiplayerRoomSessionAuthKeys(watchReturnSession);
-                        saveMultiplayerRoomSession(watchReturnSession);
-                        return watchReturnSession;
+                    if (activeSession) {
+                        activeSession.mode = "active-return";
+                        activeSession.roomName = validation.roomName;
+                        activeSession.playerName = validation.playerName;
+                        activeSession.transportRoomId = transportRoomId;
+                        activeSession.phase = "active";
+                        activeSession.watchReturnEligible = false;
+                        delete activeSession.watchReturnEligibleAfterMs;
+                        delete activeSession.watchReturnReason;
+                        await ensureMultiplayerRoomSessionAuthKeys(activeSession);
+                        saveMultiplayerRoomSession(activeSession);
+                        return activeSession;
                     }
                 }
                 const participantId = "p-" + multiplayerRandomBase64Url(12);
@@ -2475,23 +2535,19 @@
                 if (snapshot.participants.some((existing) => existing.participantId === participant.participantId)) {
                     return true;
                 }
-                if (snapshot.participants.length >= MULTIPLAYER_ROOM_MAX_CONNECTIONS) {
+                const seat = firstOpenSeat(snapshot);
+                if (seat < 0 || snapshot.participants.length >= MULTIPLAYER_ROOM_MAX_CONNECTIONS) {
                     return false;
                 }
                 participant.participantColor = normalizeParticipantColor(snapshot, participant);
                 snapshot.participants.push(participant);
-                const seat = firstOpenSeat(snapshot);
-                if (seat >= 0) {
-                    snapshot.playerSeats[seat] = {
-                        seat,
-                        participantId: participant.participantId,
-                        heroChoice: "WARRIOR",
-                        ready: false
-                    };
-                } else {
-                    participant.role = "watcher";
-                    snapshot.watcherIds.push(participant.participantId);
-                }
+                participant.role = "player";
+                snapshot.playerSeats[seat] = {
+                    seat,
+                    participantId: participant.participantId,
+                    heroChoice: "WARRIOR",
+                    ready: false
+                };
                 snapshot.roomEpoch += 1;
                 snapshot.capacity.activeConnections = snapshot.participants.length;
                 return true;
@@ -2815,33 +2871,6 @@
                             snapshot.countdown = null;
                         }
                     }
-                } else if (intent.action === "role-toggle") {
-                    if (seatIndex >= 0) {
-                        snapshot.playerSeats[seatIndex] = {
-                            seat: seatIndex,
-                            participantId: "",
-                            heroChoice: "",
-                            ready: false
-                    };
-                        participant.role = "watcher";
-                        addWatcherId(snapshot, participantId);
-                        snapshot.countdown = null;
-                    } else {
-                        const openSeat = firstOpenSeat(snapshot);
-                        if (openSeat < 0) {
-                            result = { ok: false, reason: "player seats full" };
-                        } else {
-                            removeWatcherId(snapshot, participantId);
-                            participant.role = "player";
-                            snapshot.playerSeats[openSeat] = {
-                                seat: openSeat,
-                                participantId,
-                                heroChoice: "WARRIOR",
-                                ready: false
-                            };
-                            snapshot.countdown = null;
-                        }
-                    }
                 } else if (intent.action === "hero-choice") {
                     const heroChoice = String(intent.value || "");
                     if (seatIndex < 0) {
@@ -2954,6 +2983,42 @@
                 pushMultiplayerRoomEvent("room-launch", roomLaunchEventValues(session));
             }
 
+            function activeRunSnapshotStorageKey(restoreKey) {
+                return restoreKey + ".activeRunSnapshot";
+            }
+
+            function activeRoomRestoreKeyForSession(session) {
+                return multiplayerRestoreKey(
+                        session.transportRoomId + ".active",
+                        session.participantId,
+                        activeRoomRunIdForSession(session));
+            }
+
+            function restoreActiveRoomRunSnapshot(session) {
+                const storage = multiplayerSessionStorage();
+                if (!storage) {
+                    return { ok: false, message: "Saved room state is unavailable in this browser." };
+                }
+                const restoreKey = activeRoomRestoreKeyForSession(session);
+                try {
+                    const saved = JSON.parse(storage.getItem(activeRunSnapshotStorageKey(restoreKey)) || "null");
+                    if (!saved || !saved.snapshot) {
+                        return { ok: false, message: "Saved room state is unavailable." };
+                    }
+                    const parsedSourceSlot = Number(saved.sourceSlot);
+                    const sourceSlot = Number.isFinite(parsedSourceSlot) ? parsedSourceSlot : MULTIPLAYER_WATCHER_SLOT;
+                    const result = restoreBrowserDataSnapshotToSlot(
+                            saved.snapshot, sourceSlot, MULTIPLAYER_ACTIVE_RETURN_SLOT, "active player");
+                    storage.setItem(restoreKey, "true");
+                    storage.setItem(restoreKey + ".message",
+                            "Restored room run for player " + session.participantId + ".");
+                    storage.setItem(restoreKey + ".resumeSlot", String(MULTIPLAYER_ACTIVE_RETURN_SLOT));
+                    return { ok: true, result };
+                } catch (error) {
+                    return { ok: false, message: browserDataBackupErrorMessage(error) };
+                }
+            }
+
             function roomWatchReturnLaunchEventValues(session, config) {
                 const snapshot = session.snapshot || {};
                 const participant = participantForId(snapshot, session.participantId) || {};
@@ -2988,11 +3053,11 @@
                 return keys;
             }
 
-            function installLaunchedMultiplayerRuntime(session) {
+            function launchedMultiplayerConfigForSession(session) {
                 const snapshot = session.snapshot || {};
                 const launch = launchSpecForParticipant(session, session.participantId);
                 const participant = participantForId(snapshot, session.participantId) || {};
-                installWebMultiplayer({
+                return {
                     playerId: session.participantId,
                     playerName: participant && participant.playerName || session.playerName || session.participantId,
                     playerColor: participantDisplayColor(participant, session.participantColor),
@@ -3009,7 +3074,11 @@
                     authPrivateKey: session.authPrivateKey || null,
                     participantAuthPublicKeys: participantAuthPublicKeysForSnapshot(snapshot),
                     roomLaunchEventValues: roomLaunchEventValues(session)
-                });
+                };
+            }
+
+            function installLaunchedMultiplayerRuntime(session) {
+                installWebMultiplayer(launchedMultiplayerConfigForSession(session));
             }
 
             function watchReturnConfigForSession(session) {
@@ -3043,22 +3112,11 @@
             }
 
             function startPlayerWatchReturn(session) {
-                cleanupMultiplayerRoomEntry("watch-return");
-                const config = watchReturnConfigForSession(session);
-                if (!config) {
-                    pushMultiplayerRoomEvent("room-error", ["No active player to watch."]);
-                    return;
+                pushMultiplayerRoomEvent("room-error", ["Watcher return is disabled."]);
+                if (session) {
+                    removeMultiplayerRoomSession(session);
                 }
-                window.__shpdMultiplayerRooms.currentSession = session;
-                pushMultiplayerRoomEvent("room-status", ["Returning as watcher..."]);
-                config.watchReturnLaunchEventValues = roomWatchReturnLaunchEventValues(session, config);
-                installWebMultiplayer(config);
-                logWebParity("multiplayer player watch return", {
-                    source: session.source,
-                    roomName: session.roomName,
-                    participantId: session.participantId,
-                    watchTargetId: config.watchTargetId
-                });
+                window.__shpdMultiplayerRooms.currentSession = null;
             }
 
             function sendRoomLaunch(runtime, peerId) {
@@ -3747,7 +3805,9 @@
 
             function startMultiplayerRoomTransport(session) {
                 if (session && (session.mode === "watch-return" || session.phase === "watch-return")) {
-                    startPlayerWatchReturn(session);
+                    pushMultiplayerRoomEvent("room-error", ["Watcher return is disabled."]);
+                    removeMultiplayerRoomSession(session);
+                    window.__shpdMultiplayerRooms.currentSession = null;
                     return;
                 }
                 cleanupMultiplayerRoomEntry("new-room-request");
@@ -3868,6 +3928,29 @@
                     }
                     window.__shpdMultiplayerRooms.currentSession = session;
                     window.__shpdMultiplayerRooms.pendingRequest = null;
+                    if (session.mode === "active-return" && session.phase === "active") {
+                        const restoreResult = restoreActiveRoomRunSnapshot(session);
+                        if (!restoreResult.ok) {
+                            pushMultiplayerRoomEvent("room-error", [restoreResult.message]);
+                            logWebParity("multiplayer active room player return failed", {
+                                source: session.source,
+                                roomName: session.roomName,
+                                participantId: session.participantId,
+                                error: restoreResult.message
+                            });
+                            return session;
+                        }
+                        pushMultiplayerRoomEvent("room-status", ["Room rejoined. Reloading saved run..."]);
+                        saveRoomActiveMultiplayerConfig(launchedMultiplayerConfigForSession(session));
+                        window.setTimeout(() => window.location.replace(multiplayerUrlWithoutCloneFlag()), 100);
+                        logWebParity("multiplayer active room player returned", {
+                            source: session.source,
+                            roomName: session.roomName,
+                            participantId: session.participantId,
+                            result: restoreResult.result
+                        });
+                        return session;
+                    }
                     startMultiplayerRoomTransport(session);
                     logWebParity("multiplayer room session prepared", {
                         source: session.source,
@@ -3976,7 +4059,7 @@
                 if (!runtime || !session || !snapshot || session.phase !== "lobby") {
                     return false;
                 }
-                if (action === "ready-toggle" || action === "role-toggle" || action === "hero-choice") {
+                if (action === "ready-toggle" || action === "hero-choice") {
                     if (session.roomOwnerParticipantId === session.participantId) {
                         const result = applyParticipantIntent(runtime, nextParticipantIntent(session, action, value));
                         if (!result.ok) {
@@ -4239,9 +4322,6 @@
                     }
                     if (action === "wait-connections") {
                         return (snapshot.participants || []).length >= Number(value);
-                    }
-                    if (action === "role-toggle") {
-                        return devUrlRoomParticipantRole(snapshot, session.participantId) !== before.role;
                     }
                     if (action === "ready-toggle") {
                         return devUrlRoomParticipantReady(snapshot, session.participantId) !== before.ready;
@@ -4775,11 +4855,7 @@
                     }
 
                 function markActiveRoomSessionWatchReturnEligible(delayMs, reason) {
-                    if (state.participantSource !== MULTIPLAYER_ROOM_SOURCE_ROOM_UI || state.isWatcher) {
-                        return false;
-                    }
-                    return markStoredActiveRoomSessionWatchReturnEligible(
-                            activeRoomSessionConfig(), delayMs, reason);
+                    return false;
                 }
 
                 function cleanupMultiplayerRoom(reason) {
@@ -4836,14 +4912,10 @@
                 }
 
                 function cleanupMultiplayerRoomOnPageHide() {
-                    markActiveRoomSessionWatchReturnEligible(
-                            MULTIPLAYER_ROOM_RECONNECT_GRACE_MS, "disconnect-grace");
                     cleanupMultiplayerRoom("pagehide");
                 }
 
                 function cleanupMultiplayerRoomOnBeforeUnload() {
-                    markActiveRoomSessionWatchReturnEligible(
-                            MULTIPLAYER_ROOM_RECONNECT_GRACE_MS, "disconnect-grace");
                     cleanupMultiplayerRoom("beforeunload");
                 }
 
@@ -5117,6 +5189,38 @@
                     sendWatcherKeyframe: function(watcherId, requestId, snapshotFilesJson) {
                         return sendPendingWatcherKeyframe(watcherId, requestId, snapshotFilesJson);
                     },
+                    saveActiveRunSnapshot: function(sourceSlot, snapshotFilesJson) {
+                        if (!storage || state.isWatcher) {
+                            return false;
+                        }
+                        try {
+                            const snapshot = snapshotFilesJson
+                                    ? createBrowserDataSnapshotPayloadFromFiles(snapshotFilesJson, "")
+                                    : createBrowserDataSnapshotPayload("");
+                            if (!snapshot) {
+                                return false;
+                            }
+                            const parsedSourceSlot = Number(sourceSlot);
+                            storage.setItem(activeRunSnapshotStorageKey(restoreKey), JSON.stringify({
+                                sourceSlot: Number.isFinite(parsedSourceSlot) ? parsedSourceSlot : 1,
+                                savedAt: Date.now(),
+                                snapshot
+                            }));
+                            logWebParity("multiplayer active run snapshot saved", {
+                                playerId,
+                                roomId: state.visibleRoomName,
+                                roomRunId: state.roomRunId
+                            });
+                            return true;
+                        } catch (error) {
+                            logWebParity("multiplayer active run snapshot failed", {
+                                playerId,
+                                roomId: state.visibleRoomName,
+                                error: browserDataBackupErrorMessage(error)
+                            });
+                            return false;
+                        }
+                    },
                     switchWatchTarget: function(targetId) {
                         targetId = String(targetId || "").trim();
                         if (!state.isWatcher || !targetId || targetId === state.watchTargetId) {
@@ -5168,48 +5272,10 @@
                         return true;
                     },
                     continueAsWatcher: function(targetId) {
-                        targetId = String(targetId || "").trim();
-                        if (!state.enabled || state.isWatcher || !targetId) {
-                            return false;
-                        }
-                        markActiveRoomSessionWatchReturnEligible(0, "continue-watch");
-                        state.isWatcher = true;
-                        state.watchTargetId = targetId;
-                        state.watchTargetSeen = false;
-                        state.keyframeRequested = false;
-                        state.keyframeStatusPushed = false;
-                        state.keyframeFailureStatusPushed = false;
-                        state.pendingKeyframeRequestId = "";
-                        state.expectedReplaySequence = 0;
-                            state.replayReady = false;
-                            clearWatcherKeyframeRetry();
-                            state.lastProgress = null;
-                            if (state.participantSource === MULTIPLAYER_ROOM_SOURCE_ROOM_UI) {
-                                saveRoomActiveMultiplayerConfig({
-                                    playerId: state.playerId,
-                                    playerName: state.playerName,
-                                    playerColor: state.playerColor,
-                                    playerSeatOrder: state.playerSeatOrder,
-                                    roomEpoch: state.roomEpoch,
-                                    roomRunId: state.roomRunId,
-                                    roomId: state.roomId,
-                                    roomName: state.visibleRoomName,
-                                    isWatcher: true,
-                                    watchTargetId: state.watchTargetId,
-                                    floorChaseTurns: state.floorChaseTurns,
-                                    floorChaseInfinite: state.floorChaseInfinite,
-                                    participantSource: state.participantSource,
-                                    authPrivateKey: state.authPrivateKey || null,
-                                    participantAuthPublicKeys: state.participantAuthPublicKeys || {}
-                                });
-                        }
-                        pushStatus("Continuing as watcher for player " + targetId + ".");
-                        sendHelloIfReady();
-                        requestWatcherKeyframeIfNeeded(true);
-                        return true;
+                        return false;
                     },
                     markWatchReturnEligible: function(reason) {
-                        return markActiveRoomSessionWatchReturnEligible(0, reason);
+                        return false;
                     },
                     debugInjectPeerHello: function(remotePlayerId, role, mirrorState) {
                         if (!state.multiplayerDebug || typeof state.debugInjectPeerHello !== "function") {
@@ -5303,13 +5369,12 @@
                                         ? state.debugPeerSnapshot() : []
                             };
                         },
-                    disconnect: function() {
-                        if (state.participantSource === MULTIPLAYER_ROOM_SOURCE_ROOM_UI) {
-                            markActiveRoomSessionWatchReturnEligible(0, "manual");
-                        clearRoomActiveMultiplayerConfig();
-                        }
-                        cleanupMultiplayerRoom("manual");
-                    },
+                        disconnect: function() {
+                            if (state.participantSource === MULTIPLAYER_ROOM_SOURCE_ROOM_UI) {
+                                clearRoomActiveMultiplayerConfig();
+                            }
+                            cleanupMultiplayerRoom("manual");
+                        },
                         finishRoom: function() {
                             if (state.participantSource === MULTIPLAYER_ROOM_SOURCE_ROOM_UI) {
                                 removeStoredActiveRoomSessionForConfig({
@@ -5405,6 +5470,28 @@
                             }
                         }
                         return "";
+                    }
+
+                    function activePlayerHasLivePeer(remotePlayerId) {
+                        remotePlayerId = String(remotePlayerId || "");
+                        if (!remotePlayerId) {
+                            return false;
+                        }
+                        for (const entry of state.activePeerParticipants.entries()) {
+                            const peerId = entry[0];
+                            if (entry[1] === remotePlayerId
+                                    && (peerRoles.get(peerId) || "player") !== "watcher") {
+                                return true;
+                            }
+                        }
+                        for (const entry of peerPlayers.entries()) {
+                            const peerId = entry[0];
+                            if (entry[1] === remotePlayerId
+                                    && (peerRoles.get(peerId) || "player") !== "watcher") {
+                                return true;
+                            }
+                        }
+                        return false;
                     }
 
                     function currentMirrorKeyframe() {
@@ -5569,7 +5656,9 @@
                     }
 
                     room.onPeerJoin((peerId) => {
-                        pushStatus("Player " + peerId + " joined room " + state.visibleRoomName + ".");
+                        pushStatus("Transport peer " + peerId + " joined room " + state.visibleRoomName + ".", {
+                            debugOnly: true
+                        });
                         sendHelloIfReady(peerId);
                         sendProgressIfReady();
                         if (state.isWatcher) {
@@ -5581,8 +5670,10 @@
                         requestWatcherKeyframeIfNeeded(false);
                     });
                     room.onPeerLeave((peerId) => {
-                        pushStatus("Player " + peerId + " left room " + state.visibleRoomName + ".");
-                        const remotePlayerId = peerPlayers.get(peerId);
+                        pushStatus("Transport peer " + peerId + " left room " + state.visibleRoomName + ".", {
+                            debugOnly: true
+                        });
+                        const remotePlayerId = peerPlayers.get(peerId) || state.activePeerParticipants.get(peerId);
                         const remoteRole = peerRoles.get(peerId) || "player";
                         peerPlayers.delete(peerId);
                         peerRoles.delete(peerId);
@@ -5592,7 +5683,8 @@
                             state.activeWatcherStatusPeers.delete(peerId);
                             state.activeWatcherStatusMessages.delete(watcherStatusKey);
                         }
-                        if (remotePlayerId && remoteRole !== "watcher") {
+                        if (remotePlayerId && remoteRole !== "watcher"
+                                && !activePlayerHasLivePeer(remotePlayerId)) {
                             peerReplaySequences.delete(remotePlayerId);
                             peerMirrorKeyframeRequests.delete(remotePlayerId);
                             javaEvents.push(multiplayerEncodeEvent("peer-left", [remotePlayerId]));

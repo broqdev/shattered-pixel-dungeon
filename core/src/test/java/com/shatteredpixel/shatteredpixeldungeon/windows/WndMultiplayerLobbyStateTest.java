@@ -30,7 +30,7 @@ import org.junit.Test;
 public class WndMultiplayerLobbyStateTest {
 
 	@Test
-	public void parsesSnapshotEventSeatsWatchersAndRules() {
+	public void parsesSnapshotEventSeatsAndRules() {
 		WndMultiplayerLobby.LobbyState state = WndMultiplayerLobby.LobbyState.fromEvent(new String[]{
 				"room-lobby",
 				"race-room",
@@ -38,7 +38,7 @@ public class WndMultiplayerLobbyStateTest {
 				"false",
 				"abc123",
 				"3",
-				"6",
+					"4",
 				"30",
 				"false",
 				"true",
@@ -56,7 +56,7 @@ public class WndMultiplayerLobbyStateTest {
 		assertFalse(state.selfOwner);
 		assertEquals("abc123", state.seedChecksum);
 		assertEquals(3, state.participantCount);
-		assertEquals(6, state.maxConnections);
+			assertEquals(4, state.maxConnections);
 		assertEquals(30, state.floorChaseTurns);
 		assertFalse(state.floorChaseInfinite);
 		assertTrue(state.countdownActive);
@@ -68,22 +68,21 @@ public class WndMultiplayerLobbyStateTest {
 		assertEquals("Bob", state.selfParticipant().name);
 		assertFalse(state.selfIsWatcher());
 		assertFalse(state.selfReady());
-		assertTrue(state.canToggleRole());
-		assertFalse(state.readyToStart());
-		assertEquals(1, state.watcherCount);
-		assertEquals("Cam", state.watchers[0].name);
-	}
+			assertFalse(state.readyToStart());
+			assertEquals(1, state.watcherCount);
+			assertEquals("Cam", state.watchers[0].name);
+		}
 
 	@Test
-	public void parsesFullCapacitySeatsAndWatcherRows() {
+	public void parsesFullPlayerCapacityWithoutWatcherRows() {
 		WndMultiplayerLobby.LobbyState state = WndMultiplayerLobby.LobbyState.fromEvent(new String[]{
 				"room-lobby",
 				"full-room",
-				"p-5",
+				"p-4",
 				"false",
 				"def456",
-				"6",
-				"6",
+				"4",
+				"4",
 				"40",
 				"false",
 				"false",
@@ -92,20 +91,15 @@ public class WndMultiplayerLobbyStateTest {
 				"p-2", "P2", "4dabf7", "false", "MAGE", "false", "true",
 				"p-3", "P3", "69db7c", "false", "ROGUE", "false", "true",
 				"p-4", "P4", "ffd43b", "false", "HUNTRESS", "false", "true",
-				"2",
-				"p-5", "W1", "b197fc", "false", "true",
-				"p-6", "W2", "ff922b", "false", "false"
+				"0"
 		});
 
-		assertEquals(6, state.participantCount);
-		assertEquals(6, state.maxConnections);
+		assertEquals(4, state.participantCount);
+		assertEquals(4, state.maxConnections);
 		assertEquals(4, state.playerCount());
-		assertEquals(2, state.watcherCount);
-		assertTrue(state.selfIsWatcher());
-		assertEquals("W1", state.selfParticipant().name);
-		assertEquals("W1", state.visibleWatchers()[0].name);
-		assertEquals("W2", state.visibleWatchers()[1].name);
-		assertFalse(state.visibleWatchers()[1].connected);
+		assertEquals(0, state.watcherCount);
+		assertFalse(state.selfIsWatcher());
+		assertEquals("P4", state.selfParticipant().name);
 		assertFalse(state.readyToStart());
 	}
 
@@ -118,7 +112,7 @@ public class WndMultiplayerLobbyStateTest {
 				"true",
 				"abc123",
 				"2",
-				"6",
+					"4",
 				"20",
 				"false",
 				"false",
@@ -134,71 +128,6 @@ public class WndMultiplayerLobbyStateTest {
 		assertEquals(2, state.playerCount());
 		assertTrue(state.readyToStart());
 		assertTrue(state.startButtonEnabled());
-	}
-
-	@Test
-	public void ownerWatcherCanStartWhenPlayerIsReady() {
-		WndMultiplayerLobby.LobbyState state = WndMultiplayerLobby.LobbyState.fromEvent(new String[]{
-				"room-lobby",
-				"race-room",
-				"p-owner",
-				"true",
-				"abc123",
-				"2",
-				"6",
-				"20",
-				"false",
-				"false",
-				"",
-				"p-2", "Bob", "4dabf7", "false", "MAGE", "true", "true",
-				"", "", "", "false", "", "false", "true",
-				"", "", "", "false", "", "false", "true",
-				"", "", "", "false", "", "false", "true",
-				"1",
-				"p-owner", "Alice", "ff6b6b", "true", "true"
-		});
-
-		assertTrue(state.selfOwner);
-		assertTrue(state.selfIsWatcher());
-		assertEquals(1, state.playerCount());
-		assertTrue(state.readyToStart());
-		assertTrue(state.startButtonEnabled());
-	}
-
-	@Test
-	public void compactWatcherRowsKeepHiddenOwnerVisible() {
-		WndMultiplayerLobby.LobbyState state = WndMultiplayerLobby.LobbyState.fromEvent(new String[]{
-				"room-lobby",
-				"race-room",
-				"p-owner",
-				"true",
-				"abc123",
-				"5",
-				"6",
-				"20",
-				"false",
-				"false",
-				"",
-				"", "", "", "false", "", "false", "true",
-				"", "", "", "false", "", "false", "true",
-				"", "", "", "false", "", "false", "true",
-				"", "", "", "false", "", "false", "true",
-				"5",
-				"p-1", "Alice", "ff6b6b", "false", "true",
-				"p-2", "Bob", "4dabf7", "false", "true",
-				"p-3", "Cam", "69db7c", "false", "true",
-				"p-4", "Dee", "ffd43b", "false", "true",
-				"p-owner", "Owner", "b197fc", "true", "true"
-		});
-
-		WndMultiplayerLobby.Participant[] visible = state.visibleWatchers();
-
-		assertEquals(5, state.watcherCount);
-		assertEquals(3, visible.length);
-		assertEquals(2, state.hiddenWatcherCount());
-		assertEquals("p-owner", visible[2].id);
-		assertTrue(visible[2].owner);
-		assertTrue(state.selfIsWatcher());
 	}
 
 	@Test

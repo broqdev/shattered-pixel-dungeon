@@ -28,7 +28,6 @@ import com.shatteredpixel.shatteredpixeldungeon.multiplayer.WebMultiplayer;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.PixelScene;
 import com.shatteredpixel.shatteredpixeldungeon.ui.CheckBox;
 import com.shatteredpixel.shatteredpixeldungeon.ui.IconButton;
-import com.shatteredpixel.shatteredpixeldungeon.ui.Icons;
 import com.shatteredpixel.shatteredpixeldungeon.ui.OptionSlider;
 import com.shatteredpixel.shatteredpixeldungeon.ui.RedButton;
 import com.shatteredpixel.shatteredpixeldungeon.ui.RenderedTextBlock;
@@ -50,14 +49,12 @@ public class WndMultiplayerLobby extends Window {
 	private static final int BUTTON_HEIGHT = 18;
 	private static final int SEAT_HEIGHT = 19;
 	private static final int HERO_ICON_WIDTH = 16;
-	private static final int WATCHER_ICON_SIZE = 12;
 	private static final int HERO_BUTTON_SIZE = 21;
 	private static final float PENDING_TIMEOUT_SECONDS = 3f;
 
 	private final LobbyState state;
 	private RenderedTextBlock statusText;
 	private RedButton startButton;
-	private RedButton roleButton;
 	private CheckBox infiniteButton;
 	private RedButton actionButton;
 	private String actionButtonAction = "";
@@ -126,47 +123,6 @@ public class WndMultiplayerLobby extends Window {
 			pos = addSeatRow(x, pos, width, i, state.seats[i]) + MARGIN;
 		}
 
-		roleButton = new RedButton(Messages.get(this, "switch_role"), 7){
-			@Override
-			protected void onClick() {
-				requestAction("role-toggle", "");
-			}
-		};
-		roleButton.icon(Icons.SHUFFLE.get());
-		roleButton.enable(state.canToggleRole());
-		float roleButtonWidth = Math.min(width, 76);
-		roleButton.setRect(x + (width - roleButtonWidth) / 2f, pos, roleButtonWidth, BUTTON_HEIGHT);
-		add(roleButton);
-		pos += BUTTON_HEIGHT + MARGIN;
-
-		RenderedTextBlock watchers = PixelScene.renderTextBlock(Messages.get(this, "watchers"), 8);
-		watchers.hardlight(Window.TITLE_COLOR);
-		watchers.setPos(x, pos);
-		add(watchers);
-		pos = watchers.bottom() + MARGIN;
-
-		if (state.watcherCount == 0) {
-			RenderedTextBlock empty = PixelScene.renderTextBlock(Messages.get(this, "watchers_empty"), 6);
-			empty.maxWidth(width);
-			empty.setPos(x, pos);
-			add(empty);
-			pos = empty.bottom() + MARGIN;
-		} else {
-			for (Participant watcher : state.visibleWatchers()) {
-				pos = addWatcherRow(x, pos, width, watcher) + MARGIN;
-			}
-			int hiddenWatchers = state.hiddenWatcherCount();
-			if (hiddenWatchers > 0) {
-				RenderedTextBlock more = PixelScene.renderTextBlock(Messages.get(this, "watchers_more",
-						hiddenWatchers), 6);
-				more.maxWidth(width);
-				more.hardlight(0xAAAAAA);
-				more.setPos(x, pos);
-				add(more);
-				pos = more.bottom() + MARGIN;
-			}
-		}
-
 		return pos - y;
 	}
 
@@ -203,25 +159,6 @@ public class WndMultiplayerLobby extends Window {
 		add(detail);
 
 		return y + SEAT_HEIGHT;
-	}
-
-	private float addWatcherRow(float x, float y, int width, Participant watcher) {
-		Image icon = Icons.DISPLAY.get();
-		icon.scale.set(0.75f);
-		icon.x = x + (HERO_ICON_WIDTH - WATCHER_ICON_SIZE) / 2f;
-		icon.y = y + 1;
-		add(icon);
-
-		RenderedTextBlock name = PixelScene.renderTextBlock(6);
-		name.text(watcher.name, width - HERO_ICON_WIDTH - 12);
-		name.hardlight(watcher.color);
-		name.setPos(x + HERO_ICON_WIDTH + 2, y + 2);
-		add(name);
-
-		if (watcher.owner) {
-			addOwnerLabelAfterName(name, x, y + 2, width);
-		}
-		return y + Math.max(14, name.height() + 2);
 	}
 
 	private float addHeroChoice(float x, float y, int width) {
@@ -592,8 +529,6 @@ public class WndMultiplayerLobby extends Window {
 		if (camera == null) {
 			return;
 		}
-		logControlBounds("role-toggle", roleButton, "enabled=" + state.canToggleRole()
-				+ " watcher=" + state.selfIsWatcher());
 		logControlBounds("floor-infinite", infiniteButton, "enabled=" + state.selfOwner
 				+ " infinite=" + state.floorChaseInfinite);
 		if (actionButton != null) {
@@ -609,7 +544,6 @@ public class WndMultiplayerLobby extends Window {
 					+ " countdown=" + state.countdownActive
 					+ " readyToStart=" + state.readyToStart()
 					+ " players=" + state.playerCount()
-					+ " watchers=" + state.watcherCount
 					+ " connections=" + state.participantCount
 					+ "/" + state.maxConnections;
 		}
@@ -644,14 +578,14 @@ public class WndMultiplayerLobby extends Window {
 	public static class LobbyState {
 
 		private static final int MAX_SEATS = 4;
-		private static final int MAX_VISIBLE_WATCHERS = 3;
+		private static final int MAX_CONNECTIONS = 4;
 
 		public String roomName = "";
 		public String selfParticipantId = "";
 		public boolean selfOwner;
 		public String seedChecksum = "";
 		public int participantCount = 1;
-		public int maxConnections = 6;
+		public int maxConnections = MAX_CONNECTIONS;
 		public int floorChaseTurns = 40;
 		public boolean floorChaseInfinite;
 		public boolean countdownActive;
@@ -719,36 +653,6 @@ public class WndMultiplayerLobby extends Window {
 			return selfOwner && (countdownActive || readyToStart());
 		}
 
-		public Participant[] visibleWatchers() {
-			int visibleCount = Math.min(watcherCount, MAX_VISIBLE_WATCHERS);
-			Participant[] visible = new Participant[visibleCount];
-			for (int i = 0; i < visibleCount; i++) {
-				visible[i] = watchers[i];
-			}
-			if (visibleCount > 0 && watcherCount > visibleCount && !containsOwner(visible)) {
-				for (int i = visibleCount; i < watcherCount; i++) {
-					if (watchers[i].owner) {
-						visible[visibleCount - 1] = watchers[i];
-						break;
-					}
-				}
-			}
-			return visible;
-		}
-
-		public int hiddenWatcherCount() {
-			return Math.max(0, watcherCount - visibleWatchers().length);
-		}
-
-		private boolean containsOwner(Participant[] participants) {
-			for (Participant participant : participants) {
-				if (participant != null && participant.owner) {
-					return true;
-				}
-			}
-			return false;
-		}
-
 		public String startButtonText() {
 			if (countdownActive) {
 				int seconds = Math.max(0, (int)Math.ceil((countdownDeadlineMs - System.currentTimeMillis()) / 1000f));
@@ -764,21 +668,6 @@ public class WndMultiplayerLobby extends Window {
 				return Messages.get(WndMultiplayerLobby.class, "start_need_ready");
 			}
 			return Messages.get(WndMultiplayerLobby.class, "start");
-		}
-
-		public boolean canToggleRole() {
-			if (selfParticipantId.isEmpty()) {
-				return false;
-			}
-			if (!selfIsWatcher()) {
-				return true;
-			}
-			for (Participant seat : seats) {
-				if (!seat.occupied()) {
-					return true;
-				}
-			}
-			return false;
 		}
 
 		public Participant selfParticipant() {
@@ -812,7 +701,7 @@ public class WndMultiplayerLobby extends Window {
 			state.selfOwner = parseBoolean(value(parts, 3));
 			state.seedChecksum = value(parts, 4);
 			state.participantCount = parseInt(value(parts, 5), 1);
-			state.maxConnections = parseInt(value(parts, 6), 6);
+			state.maxConnections = parseInt(value(parts, 6), MAX_CONNECTIONS);
 			state.floorChaseTurns = parseInt(value(parts, 7), 40);
 			state.floorChaseInfinite = parseBoolean(value(parts, 8));
 			state.countdownActive = parseBoolean(value(parts, 9));
