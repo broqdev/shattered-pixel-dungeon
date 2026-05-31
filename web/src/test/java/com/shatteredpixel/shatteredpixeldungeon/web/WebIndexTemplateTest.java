@@ -87,7 +87,6 @@ public class WebIndexTemplateTest {
 		assertTrue(html.contains("function loadStoredRoomSessionForActivePlayerReturn(normalizedRoomName, roomSecret, playerName)"));
 		assertTrue(html.contains("function loadStoredRoomSessionForRejoinCandidate()"));
 		assertTrue(html.contains("function createBlockedByStoredRoomRejoinCandidate(normalizedRoomName)"));
-		assertTrue(html.contains("function loadStoredRoomSessionForWatchReturn(normalizedRoomName, roomSecret, playerName)"));
 		assertTrue(html.contains("function roomReturnDeadlineExpired(deadlineMs)"));
 		assertTrue(html.contains("function storedRoomSessionReconnectDeadlineMs(session)"));
 		assertTrue(html.contains("function markStoredRoomSessionReconnectDeadline(session, deadlineMs, reason)"));
@@ -131,8 +130,6 @@ public class WebIndexTemplateTest {
 		assertTrue(html.contains("function launchMultiplayerRoom(runtime)"));
 		assertTrue(html.contains("function pushRoomLaunchEvent(session)"));
 		assertTrue(html.contains("function installLaunchedMultiplayerRuntime(session)"));
-		assertTrue(html.contains("function startPlayerWatchReturn(session)"));
-		assertTrue(html.contains("function pushRoomWatchReturnLaunchEvent(session, config)"));
 		assertTrue(html.contains("function snapshotCanUpdateRoomSession(session, snapshot, expectedPhase)"));
 		assertTrue(html.contains("function snapshotCanUpdateLobbyFromSender(session, snapshot, senderParticipantId)"));
 		assertTrue(html.contains("function participantIntentMatchesRoomEpoch(session, intent)"));
@@ -231,10 +228,11 @@ public class WebIndexTemplateTest {
 		assertTrue(html.contains("Requested keyframe from player"));
 		assertTrue(html.contains("Watcher keyframe restore failed"));
 		assertTrue(html.contains("switchWatchTarget"));
-		assertTrue(html.contains("continueAsWatcher"));
 		assertFalse(html.contains("Continuing as watcher for player"));
-		assertTrue(html.contains("watchReturn"));
-		assertTrue(html.contains("rejectWatchReturnRoomFull"));
+		assertFalse(html.contains("continueAsWatcher"));
+		assertFalse(html.contains("watchReturn"));
+		assertFalse(html.contains("watch-return"));
+		assertFalse(html.contains("rejectWatchReturnRoomFull"));
 		assertTrue(html.contains("announceReplayEvent"));
 		assertTrue(html.contains("replayReady"));
 		assertTrue(html.contains("handlePeerMirrorReplay"));
@@ -293,7 +291,7 @@ public class WebIndexTemplateTest {
 	}
 
 	@Test
-	public void playerWatchReturnStoredSessionDoesNotCreateWatcherEntry() throws IOException {
+	public void activeRoomReturnStoredSessionDoesNotCreateWatcherEntry() throws IOException {
 		String html = readIndexTemplate();
 		String roomCreation = sectionBetween(html,
 				"async function createMultiplayerRoomSession(mode, input)",
@@ -301,47 +299,33 @@ public class WebIndexTemplateTest {
 		String roomRejoinCreation = sectionBetween(html,
 				"async function createMultiplayerRoomRejoinSession()",
 				"async function createMultiplayerRoomSession(mode, input)");
-		String roomTransport = sectionBetween(html,
-				"function startMultiplayerRoomTransport(session)",
-				"cleanupMultiplayerRoomEntry(\"new-room-request\")");
-			String activeRuntime = sectionBetween(html,
-					"function installWebMultiplayer(launchConfig)",
-					"import(MULTIPLAYER_TRYSTERO_MODULE)");
-			String roomRequest = sectionBetween(html,
-					"function startRequestedMultiplayerRoomSession(session, sessionSource)",
-					"function requestMultiplayerRoomSession(mode, roomName, password, playerName, source)");
+		String activeRuntime = sectionBetween(html,
+				"function installWebMultiplayer(launchConfig)",
+				"import(MULTIPLAYER_TRYSTERO_MODULE)");
+		String roomRequest = sectionBetween(html,
+				"function startRequestedMultiplayerRoomSession(session, sessionSource)",
+				"function requestMultiplayerRoomSession(mode, roomName, password, playerName, source)");
 
-			assertTrue(html.contains("function storedRoomSessionActivePlayerReturnCandidate(session,"));
-			assertTrue(html.contains("playerSeatIndexForParticipant(session.snapshot, session.participantId) >= 0"));
-			assertFalse(roomCreation.contains("loadStoredRoomSessionForActivePlayerReturn("));
-			assertTrue(roomRejoinCreation.contains("candidate.kind === \"active-return\""));
-			assertTrue(roomRejoinCreation.contains("session.mode = \"active-return\";"));
-			assertTrue(roomRejoinCreation.contains("session.phase = \"active\";"));
-			assertTrue(roomRejoinCreation.contains("session.watchReturnEligible = false;"));
-			assertFalse(roomCreation.contains("loadStoredRoomSessionForWatchReturn"));
-			assertFalse(roomCreation.contains("watchReturnSession.mode = \"watch-return\""));
-			assertTrue(roomRequest.contains("session.mode === \"active-return\" && session.phase === \"active\""));
-			assertTrue(roomRequest.contains("restoreActiveRoomRunSnapshot(session);"));
-			assertTrue(roomRequest.contains("saveRoomActiveMultiplayerConfig(launchedMultiplayerConfigForSession(session));"));
-			assertTrue(roomRequest.contains("window.location.replace(multiplayerUrlWithoutCloneFlag())"));
-			assertFalse(roomRequest.contains("pushRoomLaunchEvent(session);"));
-			assertTrue(roomRequest.indexOf("restoreActiveRoomRunSnapshot(session);")
-					< roomRequest.indexOf("startMultiplayerRoomTransport(session);"));
-			assertTrue(html.contains("const MULTIPLAYER_ACTIVE_RETURN_SLOT = 7;"));
-			assertTrue(html.contains("function restoreActiveRoomRunSnapshot(session)"));
-			assertTrue(html.contains("restoreBrowserDataSnapshotToSlot("));
-			assertTrue(roomTransport.contains("Watcher return is disabled."));
-		assertTrue(roomTransport.contains("removeMultiplayerRoomSession(session);"));
-		assertTrue(html.contains("function startPlayerWatchReturn(session) {\n"
-				+ "                pushMultiplayerRoomEvent(\"room-error\", [\"Watcher return is disabled.\"]);"));
-		assertTrue(activeRuntime.contains("continueAsWatcher: function(targetId) {\n"
-				+ "                        return false;\n"
-				+ "                    }"));
+		assertTrue(html.contains("function storedRoomSessionActivePlayerReturnCandidate(session,"));
+		assertTrue(html.contains("playerSeatIndexForParticipant(session.snapshot, session.participantId) >= 0"));
+		assertFalse(roomCreation.contains("loadStoredRoomSessionForActivePlayerReturn("));
+		assertTrue(roomRejoinCreation.contains("candidate.kind === \"active-return\""));
+		assertTrue(roomRejoinCreation.contains("session.mode = \"active-return\";"));
+		assertTrue(roomRejoinCreation.contains("session.phase = \"active\";"));
+		assertFalse(roomRejoinCreation.contains("watchReturn"));
+		assertFalse(roomCreation.contains("loadStoredRoomSessionForWatchReturn"));
+		assertFalse(roomCreation.contains("watchReturnSession.mode = \"watch-return\""));
+		assertTrue(roomRequest.contains("session.mode === \"active-return\" && session.phase === \"active\""));
+		assertTrue(roomRequest.contains("restoreActiveRoomRunSnapshot(session);"));
+		assertTrue(roomRequest.contains("saveRoomActiveMultiplayerConfig(launchedMultiplayerConfigForSession(session));"));
+		assertTrue(roomRequest.contains("window.location.replace(multiplayerUrlWithoutCloneFlag())"));
+		assertFalse(roomRequest.contains("pushRoomLaunchEvent(session);"));
+		assertTrue(roomRequest.indexOf("restoreActiveRoomRunSnapshot(session);")
+				< roomRequest.indexOf("startMultiplayerRoomTransport(session);"));
+		assertTrue(html.contains("const MULTIPLAYER_ACTIVE_RETURN_SLOT = 7;"));
+		assertTrue(html.contains("function restoreActiveRoomRunSnapshot(session)"));
+		assertTrue(html.contains("restoreBrowserDataSnapshotToSlot("));
 		assertTrue(activeRuntime.contains("saveActiveRunSnapshot: function(sourceSlot, snapshotFilesJson)"));
-		assertTrue(activeRuntime.contains("markWatchReturnEligible: function(reason) {\n"
-				+ "                        return false;\n"
-				+ "                    }"));
-		assertFalse(activeRuntime.contains("markActiveRoomSessionWatchReturnEligible(0, \"continue-watch\")"));
 		assertTrue(activeRuntime.contains("debugInjectPeerHello: function(remotePlayerId, role, mirrorState)"));
 		assertTrue(activeRuntime.contains("if (!state.multiplayerDebug || typeof state.debugInjectPeerHello !== \"function\")"));
 		assertTrue(activeRuntime.contains("return state.debugInjectPeerHello(remotePlayerId, role, mirrorState);"));
@@ -373,17 +357,16 @@ public class WebIndexTemplateTest {
 		assertTrue(html.contains("payload.mirrorState = Object.assign({}, mirrorState);"));
 		assertTrue(html.contains("payload.mirrorState.playerId = String(payload.mirrorState.playerId || remotePlayerId);"));
 		assertTrue(html.contains("function handleHello(data, peerId)"));
-		assertTrue(activeRuntime.contains("function markActiveRoomSessionWatchReturnEligible(delayMs, reason)"));
-		assertFalse(activeRuntime.contains("markActiveRoomSessionWatchReturnEligible(0, \"continue-watch\")"));
-		assertTrue(activeRuntime.contains("markWatchReturnEligible: function(reason)"));
-		assertFalse(activeRuntime.contains("markActiveRoomSessionWatchReturnEligible(0, \"manual\")"));
+		assertFalse(activeRuntime.contains("markActiveRoomSessionWatchReturnEligible"));
+		assertFalse(activeRuntime.contains("markWatchReturnEligible"));
+		assertFalse(activeRuntime.contains("continueAsWatcher"));
+		assertFalse(activeRuntime.contains("watchReturn"));
+		assertFalse(activeRuntime.contains("watch-return"));
 		assertFalse(activeRuntime.contains("MULTIPLAYER_ROOM_RECONNECT_GRACE_MS, \"disconnect-grace\""));
-		assertTrue(activeRuntime.contains("for (const disconnectedPlayerId of state.activeDisconnectedPlayers.values())"));
+		assertTrue(activeRuntime.contains("activeDisconnectedPlayers: new Set()"));
 		assertTrue(html.contains("state.retryIntervalId = window.setInterval(() => {\n"
 				+ "                        sendHelloIfReady();"));
-		assertTrue(activeRuntime.contains("pushMultiplayerRoomEvent(\"room-error\", [\"room full\"])"));
-		assertTrue(activeRuntime.contains("cleanupMultiplayerRoom(\"watch-return-room-full\")"));
-		assertTrue(html.contains("window.setTimeout(() => acceptWatchReturnIfNotFull(peerPlayers)"));
+		assertFalse(activeRuntime.contains("pushMultiplayerRoomEvent(\"room-error\", [\"room full\"])"));
 		assertTrue(activeRuntime.contains("finishRoom: function()"));
 		assertTrue(activeRuntime.contains("removeStoredActiveRoomSessionForConfig({"));
 	}
@@ -449,10 +432,10 @@ public class WebIndexTemplateTest {
 				"function storedRoomSessionActivePlayerReturnCandidate(session,");
 		String activeLoad = sectionBetween(html,
 				"function loadStoredRoomSessionForActivePlayerReturn(normalizedRoomName, roomSecret, playerName)",
-				"function storedRoomSessionWatchReturnCandidate(session, normalizedRoomName, roomSecret, playerName)");
+				"function storedRoomSessionRejoinKind(session)");
 		String restoreActive = sectionBetween(html,
 				"function restoreActiveRoomRunSnapshot(session)",
-				"function roomWatchReturnLaunchEventValues(session, config)");
+				"function participantAuthPublicKeysForSnapshot(snapshot)");
 		String roomEntryCleanup = sectionBetween(html,
 				"function cleanupMultiplayerRoomRuntime(runtime, reason)",
 				"async function sendEncryptedRoomPayload(runtime, payload, peerId)");
@@ -742,7 +725,7 @@ public class WebIndexTemplateTest {
 		String html = readIndexTemplate();
 		String createBlocked = sectionBetween(html,
 				"function createBlockedByStoredRoomRejoinCandidate(normalizedRoomName)",
-				"function storedRoomSessionWatchReturnCandidate(session, normalizedRoomName, roomSecret, playerName)");
+				"async function createFreshJoinSessionFromExpiredReconnect(expiredSession)");
 		String createSession = sectionBetween(html,
 				"async function createMultiplayerRoomSession(mode, input)",
 				"const reconnectToken =");

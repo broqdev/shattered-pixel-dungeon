@@ -36,6 +36,10 @@ _Avoid_: old room, saved room, previous room
 The player-facing choice to attempt Room Reconnect instead of starting a Room Join Request.
 _Avoid_: Join Room, new join, Create Room
 
+**Active Room Return**:
+The return of a Playable Player to their same active Competitive Run from same-session Transient Run State.
+_Avoid_: Player Watch Return, Watcher return, new join, Saved Game restore
+
 **Reconnect Deadline**:
 The room-agreed cutoff before a Room Disconnect completes Leave cleanup.
 _Avoid_: local timeout, grace guess, peer timer
@@ -261,6 +265,9 @@ _Avoid_: timeout, timer, race clock
 - A **Room Reconnect Candidate** can become a **Room Reconnect**.
 - A **Rejoin Room Action** attempts one **Room Reconnect Candidate**.
 - A **Room Reconnect Candidate** blocks Create Room for the same **Room Name**.
+- A **Rejoin Room Action** can attempt **Active Room Return** after a Competitive Run starts.
+- **Active Room Return** preserves the same **Room Participant** and **Transient Run State**.
+- **Active Room Return** is distinct from **Player Watch Return**.
 - A **Room Join Request** does not use a **Room Reconnect Candidate**.
 - A return after Leave cleanup completes is not a **Room Reconnect**.
 - A return after Leave cleanup completes creates a new **Room Participant**.
