@@ -435,6 +435,8 @@ public class WndMultiplayerLobby extends Window {
 				return "reject_room_full";
 			case "game already started":
 				return "reject_game_started";
+			case "room rejoin available":
+				return "reject_rejoin_available";
 			default:
 				return null;
 		}

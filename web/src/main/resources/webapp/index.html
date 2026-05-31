@@ -2424,6 +2424,13 @@
                 return true;
             }
 
+            function createBlockedByStoredRoomRejoinCandidate(normalizedRoomName) {
+                const candidate = loadStoredRoomSessionForRejoinCandidate();
+                return !!candidate
+                        && !!candidate.session
+                        && candidate.session.normalizedRoomName === normalizedRoomName;
+            }
+
             function storedRoomSessionWatchReturnCandidate(session, normalizedRoomName, roomSecret, playerName) {
                 return !!session
                         && session.protocolVersion === MULTIPLAYER_ROOM_PROTOCOL_VERSION
@@ -2569,6 +2576,9 @@
                 const intentionallyLeft = storedRoomIdentityWasIntentionallyLeft(identity);
                 if (mode === "join" && intentionallyLeft) {
                     removeStoredRoomSessionsForIdentity(identity);
+                }
+                if (mode === "create" && createBlockedByStoredRoomRejoinCandidate(validation.normalizedRoomName)) {
+                    throw new Error("room rejoin available");
                 }
                 const participantId = "p-" + multiplayerRandomBase64Url(12);
                 const reconnectToken = "rt-" + multiplayerRandomBase64Url(24);

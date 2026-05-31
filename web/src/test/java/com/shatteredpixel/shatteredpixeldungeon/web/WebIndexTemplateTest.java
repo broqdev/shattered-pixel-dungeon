@@ -86,6 +86,7 @@ public class WebIndexTemplateTest {
 		assertTrue(html.contains("function loadStoredRoomSessionForReconnect(normalizedRoomName, roomSecret, playerName)"));
 		assertTrue(html.contains("function loadStoredRoomSessionForActivePlayerReturn(normalizedRoomName, roomSecret, playerName)"));
 		assertTrue(html.contains("function loadStoredRoomSessionForRejoinCandidate()"));
+		assertTrue(html.contains("function createBlockedByStoredRoomRejoinCandidate(normalizedRoomName)"));
 		assertTrue(html.contains("function loadStoredRoomSessionForWatchReturn(normalizedRoomName, roomSecret, playerName)"));
 		assertTrue(html.contains("function roomReturnDeadlineExpired(deadlineMs)"));
 		assertTrue(html.contains("function storedRoomSessionReconnectDeadlineMs(session)"));
@@ -734,6 +735,24 @@ public class WebIndexTemplateTest {
 		assertTrue(reconnectRejected.indexOf("window.__shpdMultiplayerRooms.currentSession = null;")
 				< reconnectRejected.indexOf("pushMultiplayerRoomEvent(\"room-error\""));
 		assertTrue(reconnectRejected.indexOf("if (retryFreshJoin)") < reconnectRejected.indexOf("pushMultiplayerRoomEvent(\"room-error\""));
+	}
+
+	@Test
+	public void createRoomIsBlockedBySameNameRejoinCandidate() throws IOException {
+		String html = readIndexTemplate();
+		String createBlocked = sectionBetween(html,
+				"function createBlockedByStoredRoomRejoinCandidate(normalizedRoomName)",
+				"function storedRoomSessionWatchReturnCandidate(session, normalizedRoomName, roomSecret, playerName)");
+		String createSession = sectionBetween(html,
+				"async function createMultiplayerRoomSession(mode, input)",
+				"const reconnectToken =");
+
+		assertTrue(createBlocked.contains("const candidate = loadStoredRoomSessionForRejoinCandidate();"));
+		assertTrue(createBlocked.contains("candidate.session.normalizedRoomName === normalizedRoomName"));
+		assertTrue(createSession.contains("mode === \"create\" && createBlockedByStoredRoomRejoinCandidate(validation.normalizedRoomName)"));
+		assertTrue(createSession.contains("throw new Error(\"room rejoin available\");"));
+		assertTrue(createSession.indexOf("throw new Error(\"room rejoin available\");")
+				< createSession.indexOf("const participantId ="));
 	}
 
 	@Test

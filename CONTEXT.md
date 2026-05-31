@@ -260,6 +260,7 @@ _Avoid_: timeout, timer, race clock
 - A **Room Reconnect** can preserve **Room Owner** status.
 - A **Room Reconnect Candidate** can become a **Room Reconnect**.
 - A **Rejoin Room Action** attempts one **Room Reconnect Candidate**.
+- A **Room Reconnect Candidate** blocks Create Room for the same **Room Name**.
 - A **Room Join Request** does not use a **Room Reconnect Candidate**.
 - A return after Leave cleanup completes is not a **Room Reconnect**.
 - A return after Leave cleanup completes creates a new **Room Participant**.
