@@ -48,6 +48,11 @@ public class WebIndexTemplateTest {
 		assertTrue(html.contains("trystero@0.21.8/torrent/+esm"));
 		assertTrue(html.contains("MULTIPLAYER_TRYSTERO_CONFIG"));
 		assertTrue(html.contains("relayRedundancy: 1"));
+		assertTrue(html.contains("let multiplayerTrysteroModulePromise = null;"));
+		assertTrue(html.contains("function loadMultiplayerTrysteroModule()"));
+		assertTrue(html.contains("multiplayerTrysteroModulePromise = import(MULTIPLAYER_TRYSTERO_MODULE).catch((error) => {"));
+		assertTrue(html.contains("function prewarmMultiplayerTrysteroModule(reason)"));
+		assertTrue(html.contains("prewarmTransport: prewarmMultiplayerTrysteroModule"));
 		assertTrue(html.contains("window.__shpdMultiplayer"));
 		assertTrue(html.contains("window.__shpdMultiplayerRooms"));
 		assertTrue(html.contains("playerName: \"\""));
@@ -306,7 +311,7 @@ public class WebIndexTemplateTest {
 				"async function createMultiplayerRoomSession(mode, input)");
 		String activeRuntime = sectionBetween(html,
 				"function installWebMultiplayer(launchConfig)",
-				"import(MULTIPLAYER_TRYSTERO_MODULE)");
+				"loadMultiplayerTrysteroModule().then((trystero) => {");
 		String roomRequest = sectionBetween(html,
 				"function startRequestedMultiplayerRoomSession(session, sessionSource)",
 				"function requestMultiplayerRoomSession(mode, roomName, password, playerName, source)");
@@ -994,7 +999,7 @@ public class WebIndexTemplateTest {
 				"window.__shpdMultiplayerRooms = {");
 		String activeRuntime = sectionBetween(html,
 				"function installWebMultiplayer(launchConfig)",
-				"import(MULTIPLAYER_TRYSTERO_MODULE)");
+				"loadMultiplayerTrysteroModule().then((trystero) => {");
 
 		assertTrue(roomBridge.contains("MULTIPLAYER_ROOM_DEV_URL_ACTIONS"));
 		assertTrue(roomBridge.contains("\"ready-toggle\", \"hero-choice\", \"floor-turns\""));
@@ -1084,7 +1089,7 @@ public class WebIndexTemplateTest {
 				"function sendRoomLaunch(runtime, peerId)");
 		String activeRuntime = sectionBetween(html,
 				"function installWebMultiplayer(launchConfig)",
-				"import(MULTIPLAYER_TRYSTERO_MODULE)");
+				"loadMultiplayerTrysteroModule().then((trystero) => {");
 
 		assertTrue(launchHelpers.contains("const firstPlayer = occupiedPlayerSeats(snapshot)[0];"));
 		assertTrue(launchHelpers.contains("watchTargetId: firstPlayer && firstPlayer.participantId || \"\""));

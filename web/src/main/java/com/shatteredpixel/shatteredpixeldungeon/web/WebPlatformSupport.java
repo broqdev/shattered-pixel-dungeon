@@ -251,7 +251,9 @@ public class WebPlatformSupport extends PlatformSupport {
 
 	@JSBody(script = "return typeof window !== 'undefined'"
 			+ " && !!window.__shpdMultiplayerRooms"
-			+ " && typeof window.__shpdMultiplayerRooms.requestRoom === 'function';")
+			+ " && typeof window.__shpdMultiplayerRooms.requestRoom === 'function'"
+			+ " ? (typeof window.__shpdMultiplayerRooms.prewarmTransport === 'function'"
+			+ "  && window.__shpdMultiplayerRooms.prewarmTransport('entry-available'), true) : false;")
 	private static native boolean multiplayerRoomEntryAvailableNative();
 
 	@JSBody(params = { "mode", "roomName", "password", "playerName" },

@@ -1111,6 +1111,27 @@
                 appId: MULTIPLAYER_APP_ID,
                 relayRedundancy: 1
             };
+            let multiplayerTrysteroModulePromise = null;
+
+            function loadMultiplayerTrysteroModule() {
+                if (!multiplayerTrysteroModulePromise) {
+                    multiplayerTrysteroModulePromise = import(MULTIPLAYER_TRYSTERO_MODULE).catch((error) => {
+                        multiplayerTrysteroModulePromise = null;
+                        throw error;
+                    });
+                }
+                return multiplayerTrysteroModulePromise;
+            }
+
+            function prewarmMultiplayerTrysteroModule(reason) {
+                loadMultiplayerTrysteroModule().catch((error) => {
+                    logWebParity("multiplayer transport prewarm failed", {
+                        reason: String(reason || ""),
+                        error: browserDataBackupErrorMessage(error)
+                    });
+                });
+            }
+
             const MULTIPLAYER_DEFAULT_ROOM = "default";
             const MULTIPLAYER_RESTORE_KEY_PREFIX = "shpd.multiplayer.snapshotRestored.";
             const MULTIPLAYER_WATCHER_RESTORE_KEY_PREFIX = "shpd.multiplayer.watcherKeyframe.";
@@ -3981,7 +4002,7 @@
                             : (session.mode === "reconnect" || session.mode === "rejoin"
                                     ? "Reconnecting to room..." : "Finding room owner...")
                 ]);
-                import(MULTIPLAYER_TRYSTERO_MODULE).then((trystero) => {
+                loadMultiplayerTrysteroModule().then((trystero) => {
                     const room = trystero.joinRoom(MULTIPLAYER_TRYSTERO_CONFIG, session.transportRoomId);
                     const roomMessage = room.makeAction("room-msg");
                     const runtime = {
@@ -4643,6 +4664,7 @@
                 currentSession: null,
                 pendingRequest: null,
                 lastError: "",
+                prewarmTransport: prewarmMultiplayerTrysteroModule,
                 requestRoom: requestMultiplayerRoomSession,
                 hasRejoinCandidate: hasStoredRoomRejoinCandidate,
                 requestRejoin: requestMultiplayerRoomRejoin,
@@ -5520,7 +5542,7 @@
                     }
                 };
 
-                import(MULTIPLAYER_TRYSTERO_MODULE).then((trystero) => {
+                loadMultiplayerTrysteroModule().then((trystero) => {
                     if (state.cleanupStarted) {
                         return;
                     }
