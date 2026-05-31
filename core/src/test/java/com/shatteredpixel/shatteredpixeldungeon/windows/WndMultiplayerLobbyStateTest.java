@@ -138,6 +138,9 @@ public class WndMultiplayerLobbyStateTest {
 		assertEquals("reject_rejoin_available", WndMultiplayerLobby.statusMessageKey("room rejoin available"));
 		assertEquals("custom bridge note", WndMultiplayerLobby.statusMessage("custom bridge note"));
 		assertEquals("", WndMultiplayerLobby.statusMessage(null));
+		assertTrue(WndMultiplayerLobby.statusClosesLobby("Left room."));
+		assertFalse(WndMultiplayerLobby.statusClosesLobby("Leaving room..."));
+		assertFalse(WndMultiplayerLobby.statusClosesLobby("Room joined."));
 	}
 
 	@Test

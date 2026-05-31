@@ -389,6 +389,10 @@ public class WndMultiplayerLobby extends Window {
 		return deadline > 0f && now >= deadline;
 	}
 
+	static boolean statusClosesLobby(String message) {
+		return "Left room.".equals(message);
+	}
+
 	public static String statusMessage(String message) {
 		if (message == null) {
 			return "";
@@ -496,6 +500,10 @@ public class WndMultiplayerLobby extends Window {
 				setStatus(Messages.get(this, "launch_unavailable"));
 			}
 		} else if ("room-status".equals(parts[0]) && parts.length >= 2) {
+			if (statusClosesLobby(parts[1])) {
+				hide();
+				return false;
+			}
 			setStatus(parts[1]);
 		} else if ("room-error".equals(parts[0]) && parts.length >= 2) {
 			setStatus(parts[1]);
