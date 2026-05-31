@@ -28,6 +28,14 @@ _Avoid_: crash, network failure, socket close
 The return of a Room Participant before Leave cleanup completes.
 _Avoid_: rejoin, new join, replacement
 
+**Room Reconnect Candidate**:
+A Room Participant identity that can still attempt Room Reconnect before Leave cleanup completes.
+_Avoid_: old room, saved room, previous room
+
+**Rejoin Room Action**:
+The player-facing choice to attempt Room Reconnect instead of starting a Room Join Request.
+_Avoid_: Join Room, new join, Create Room
+
 **Reconnect Deadline**:
 The room-agreed cutoff before a Room Disconnect completes Leave cleanup.
 _Avoid_: local timeout, grace guess, peer timer
@@ -250,6 +258,9 @@ _Avoid_: timeout, timer, race clock
 - A **Room Reconnect** after browser refresh must happen before the **Reconnect Deadline**.
 - A **Room Reconnect** requires the same **Room Participant** and **Reconnect Token**.
 - A **Room Reconnect** can preserve **Room Owner** status.
+- A **Room Reconnect Candidate** can become a **Room Reconnect**.
+- A **Rejoin Room Action** attempts one **Room Reconnect Candidate**.
+- A **Room Join Request** does not use a **Room Reconnect Candidate**.
 - A return after Leave cleanup completes is not a **Room Reconnect**.
 - A return after Leave cleanup completes creates a new **Room Participant**.
 - A return after Leave cleanup completes does not preserve **Room Owner** status, **Player Seat**, **Hero Choice**, or **Ready State**.

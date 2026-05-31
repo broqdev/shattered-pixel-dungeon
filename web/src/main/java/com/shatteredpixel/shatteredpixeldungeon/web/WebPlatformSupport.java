@@ -115,6 +115,16 @@ public class WebPlatformSupport extends PlatformSupport {
 	}
 
 	@Override
+	public boolean multiplayerRoomRejoinAvailable() {
+		return multiplayerRoomRejoinAvailableNative();
+	}
+
+	@Override
+	public boolean requestMultiplayerRoomRejoin() {
+		return requestMultiplayerRoomRejoinNative();
+	}
+
+	@Override
 	public String pollMultiplayerRoomEvent() {
 		return pollMultiplayerRoomEventNative();
 	}
@@ -254,6 +264,21 @@ public class WebPlatformSupport extends PlatformSupport {
 			+ "return false;")
 	private static native boolean requestMultiplayerRoomEntryNative(String mode, String roomName, String password,
 			String playerName);
+
+	@JSBody(script = "return typeof window !== 'undefined'"
+			+ " && !!window.__shpdMultiplayerRooms"
+			+ " && typeof window.__shpdMultiplayerRooms.hasRejoinCandidate === 'function'"
+			+ " ? window.__shpdMultiplayerRooms.hasRejoinCandidate() === true : false;")
+	private static native boolean multiplayerRoomRejoinAvailableNative();
+
+	@JSBody(script = "if (typeof window !== 'undefined'"
+			+ " && !!window.__shpdMultiplayerRooms"
+			+ " && typeof window.__shpdMultiplayerRooms.requestRejoin === 'function') {"
+			+ " window.__shpdMultiplayerRooms.requestRejoin();"
+			+ " return true;"
+			+ "}"
+			+ "return false;")
+	private static native boolean requestMultiplayerRoomRejoinNative();
 
 	@JSBody(script = "return typeof window !== 'undefined'"
 			+ " && !!window.__shpdMultiplayerRooms"

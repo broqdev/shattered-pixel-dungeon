@@ -100,6 +100,14 @@ public abstract class PlatformSupport {
 		return false;
 	}
 
+	public boolean multiplayerRoomRejoinAvailable(){
+		return false;
+	}
+
+	public boolean requestMultiplayerRoomRejoin(){
+		return false;
+	}
+
 	public String pollMultiplayerRoomEvent(){
 		return null;
 	}

@@ -2305,6 +2305,125 @@
                 return bestSession;
             }
 
+            function removeStoredRoomSessionStorageEntry(storage, key, session) {
+                if (!storage || !key) {
+                    return false;
+                }
+                storage.removeItem(key);
+                if (storage.getItem(MULTIPLAYER_ROOM_LAST_SESSION_KEY) === key) {
+                    storage.removeItem(MULTIPLAYER_ROOM_LAST_SESSION_KEY);
+                }
+                if (session && session.phase === "active") {
+                    removeActiveRunSnapshotForSession(session);
+                }
+                return true;
+            }
+
+            function storedRoomSessionRejoinKind(session) {
+                if (!session
+                        || session.protocolVersion !== MULTIPLAYER_ROOM_PROTOCOL_VERSION
+                        || session.source !== MULTIPLAYER_ROOM_SOURCE_ROOM_UI
+                        || !session.normalizedRoomName
+                        || !session.roomSecret
+                        || !session.playerName
+                        || storedRoomIdentityWasIntentionallyLeft(session)) {
+                    return "";
+                }
+                if (roomReturnDeadlineExpired(storedRoomSessionReconnectDeadlineMs(session))) {
+                    return "expired";
+                }
+                if (storedRoomSessionReconnectCandidate(session,
+                        session.normalizedRoomName, session.roomSecret, session.playerName)) {
+                    return "reconnect";
+                }
+                if (storedRoomSessionActivePlayerReturnCandidate(session,
+                        session.normalizedRoomName, session.roomSecret, session.playerName)) {
+                    return activeRunSnapshotAvailableForReturn(session) ? "active-return" : "unavailable-active";
+                }
+                return "";
+            }
+
+            function loadStoredRoomSessionForRejoinCandidate() {
+                const storage = multiplayerSessionStorage();
+                if (!storage) {
+                    return null;
+                }
+                const keys = [];
+                const lastKey = storage.getItem(MULTIPLAYER_ROOM_LAST_SESSION_KEY);
+                if (lastKey) {
+                    keys.push(lastKey);
+                }
+                for (let i = 0; i < storage.length; i++) {
+                    const key = storage.key(i);
+                    if (key && key.startsWith(MULTIPLAYER_ROOM_SESSION_KEY_PREFIX)
+                            && keys.indexOf(key) === -1) {
+                        keys.push(key);
+                    }
+                }
+                let best = null;
+                let bestSavedAt = -1;
+                const removeKeys = [];
+                for (const key of keys) {
+                    try {
+                        const session = JSON.parse(storage.getItem(key) || "null");
+                        const kind = storedRoomSessionRejoinKind(session);
+                        if (kind === "expired" || kind === "unavailable-active") {
+                            removeKeys.push({ key, session });
+                            continue;
+                        }
+                        if (kind !== "reconnect" && kind !== "active-return") {
+                            continue;
+                        }
+                        const savedAt = Number(session.savedAt || session.createdAt) || 0;
+                        if (!best || savedAt > bestSavedAt) {
+                            best = { key, session, kind };
+                            bestSavedAt = savedAt;
+                        }
+                    } catch (error) {
+                    }
+                }
+                for (const entry of removeKeys) {
+                    removeStoredRoomSessionStorageEntry(storage, entry.key, entry.session);
+                }
+                if (!best) {
+                    return null;
+                }
+                for (const key of keys) {
+                    if (key !== best.key && key.startsWith(MULTIPLAYER_ROOM_SESSION_KEY_PREFIX)) {
+                        try {
+                            const session = JSON.parse(storage.getItem(key) || "null");
+                            const kind = storedRoomSessionRejoinKind(session);
+                            if (kind === "reconnect" || kind === "active-return") {
+                                removeStoredRoomSessionStorageEntry(storage, key, session);
+                            }
+                        } catch (error) {
+                        }
+                    }
+                }
+                return best;
+            }
+
+            function hasStoredRoomRejoinCandidate() {
+                return !!loadStoredRoomSessionForRejoinCandidate();
+            }
+
+            function clearStoredRoomRejoinCandidate(session) {
+                if (session) {
+                    removeStoredRoomSessionsForIdentity(session);
+                    removeMultiplayerRoomSession(session);
+                    removeActiveRunSnapshotForSession(session);
+                    return true;
+                }
+                const candidate = loadStoredRoomSessionForRejoinCandidate();
+                if (!candidate) {
+                    return false;
+                }
+                removeStoredRoomSessionsForIdentity(candidate.session);
+                removeMultiplayerRoomSession(candidate.session);
+                removeActiveRunSnapshotForSession(candidate.session);
+                return true;
+            }
+
             function storedRoomSessionWatchReturnCandidate(session, normalizedRoomName, roomSecret, playerName) {
                 return !!session
                         && session.protocolVersion === MULTIPLAYER_ROOM_PROTOCOL_VERSION
@@ -2397,6 +2516,40 @@
                 return session;
             }
 
+            async function createMultiplayerRoomRejoinSession() {
+                const candidate = loadStoredRoomSessionForRejoinCandidate();
+                if (!candidate || !candidate.session) {
+                    throw new Error("No room is available to rejoin.");
+                }
+                const session = candidate.session;
+                if (candidate.kind === "reconnect") {
+                    session.mode = "rejoin";
+                    session.phase = "reconnect-handshake";
+                    session.reconnectRequestId = "rr-" + multiplayerRandomBase64Url(12);
+                    if (!session.reconnectToken) {
+                        session.reconnectTokenProof = "";
+                    } else if (!session.reconnectTokenProof) {
+                        session.reconnectTokenProof = await deriveMultiplayerReconnectTokenProof(
+                                session.roomSecret, session.participantId, session.reconnectToken);
+                    }
+                    await ensureMultiplayerRoomSessionAuthKeys(session);
+                    saveMultiplayerRoomSession(session);
+                    return session;
+                }
+                if (candidate.kind === "active-return") {
+                    session.mode = "active-return";
+                    session.phase = "active";
+                    session.watchReturnEligible = false;
+                    delete session.watchReturnEligibleAfterMs;
+                    delete session.watchReturnReason;
+                    await ensureMultiplayerRoomSessionAuthKeys(session);
+                    saveMultiplayerRoomSession(session);
+                    return session;
+                }
+                clearStoredRoomRejoinCandidate(session);
+                throw new Error("No room is available to rejoin.");
+            }
+
             async function createMultiplayerRoomSession(mode, input) {
                 mode = mode === "join" ? "join" : "create";
                 const validation = validateMultiplayerRoomInput(input);
@@ -2416,42 +2569,6 @@
                 const intentionallyLeft = storedRoomIdentityWasIntentionallyLeft(identity);
                 if (mode === "join" && intentionallyLeft) {
                     removeStoredRoomSessionsForIdentity(identity);
-                }
-                if (mode === "join" && !intentionallyLeft) {
-                    const storedSession = loadStoredRoomSessionForReconnect(
-                            validation.normalizedRoomName, secret.text, validation.playerName);
-                    if (storedSession) {
-                        storedSession.mode = "reconnect";
-                        storedSession.roomName = validation.roomName;
-                        storedSession.playerName = validation.playerName;
-                        storedSession.transportRoomId = transportRoomId;
-                        storedSession.phase = "reconnect-handshake";
-                        storedSession.reconnectRequestId = "rr-" + multiplayerRandomBase64Url(12);
-                        if (!storedSession.reconnectToken) {
-                            storedSession.reconnectTokenProof = "";
-                        } else if (!storedSession.reconnectTokenProof) {
-                            storedSession.reconnectTokenProof = await deriveMultiplayerReconnectTokenProof(
-                                    secret.text, storedSession.participantId, storedSession.reconnectToken);
-                        }
-                        await ensureMultiplayerRoomSessionAuthKeys(storedSession);
-                        saveMultiplayerRoomSession(storedSession);
-                        return storedSession;
-                    }
-                    const activeSession = loadStoredRoomSessionForActivePlayerReturn(
-                            validation.normalizedRoomName, secret.text, validation.playerName);
-                    if (activeSession) {
-                        activeSession.mode = "active-return";
-                        activeSession.roomName = validation.roomName;
-                        activeSession.playerName = validation.playerName;
-                        activeSession.transportRoomId = transportRoomId;
-                        activeSession.phase = "active";
-                        activeSession.watchReturnEligible = false;
-                        delete activeSession.watchReturnEligibleAfterMs;
-                        delete activeSession.watchReturnReason;
-                        await ensureMultiplayerRoomSessionAuthKeys(activeSession);
-                        saveMultiplayerRoomSession(activeSession);
-                        return activeSession;
-                    }
                 }
                 const participantId = "p-" + multiplayerRandomBase64Url(12);
                 const reconnectToken = "rt-" + multiplayerRandomBase64Url(24);
@@ -3696,7 +3813,8 @@
                 }
                 clearRoomHandshakeRetry(runtime);
                 pushMultiplayerRoomEvent("room-status", [
-                    session.mode === "reconnect" ? "Room reconnected." : "Room joined."
+                    session.mode === "reconnect" || session.mode === "rejoin"
+                            ? "Room reconnected." : "Room joined."
                 ]);
                 pushRoomLobbyEvent(session);
                 if (session.mode === "reconnect" && session.roomOwnerParticipantId === session.participantId) {
@@ -3917,7 +4035,8 @@
                             || payload.requestId !== session.reconnectRequestId) {
                         return;
                     }
-                    const retryFreshJoin = reconnectRejectedReasonIsExpired(payload.reason);
+                    const retryFreshJoin = session.mode !== "rejoin"
+                            && reconnectRejectedReasonIsExpired(payload.reason);
                     removeStoredRoomSessionsForIdentity(session);
                     removeMultiplayerRoomSession(session);
                     if (retryFreshJoin) {
@@ -3970,7 +4089,8 @@
                 pushMultiplayerRoomEvent("room-status", [
                     session.mode === "create"
                             ? "Checking room name conflict..."
-                            : (session.mode === "reconnect" ? "Reconnecting to room..." : "Finding room owner...")
+                            : (session.mode === "reconnect" || session.mode === "rejoin"
+                                    ? "Reconnecting to room..." : "Finding room owner...")
                 ]);
                 import(MULTIPLAYER_TRYSTERO_MODULE).then((trystero) => {
                     const room = trystero.joinRoom(MULTIPLAYER_TRYSTERO_CONFIG, session.transportRoomId);
@@ -4039,6 +4159,10 @@
                         startRoomHandshakeRetry(runtime);
                         runtime.timerId = window.setTimeout(() => {
                             if (multiplayerRoomRuntime === runtime && session.phase === "reconnect-handshake") {
+                                if (session.mode === "rejoin") {
+                                    clearStoredRoomRejoinCandidate(session);
+                                    window.__shpdMultiplayerRooms.currentSession = null;
+                                }
                                 cleanupMultiplayerRoomEntry("reconnect-timeout");
                                 pushMultiplayerRoomEvent("room-error", ["Owner did not respond."]);
                             }
@@ -4066,20 +4190,7 @@
                 });
             }
 
-            function requestMultiplayerRoomSession(mode, roomName, password, playerName, source) {
-                const input = { roomName, password, playerName };
-                const sessionSource = source === MULTIPLAYER_ROOM_SOURCE_DEV_URL
-                        ? MULTIPLAYER_ROOM_SOURCE_DEV_URL
-                        : MULTIPLAYER_ROOM_SOURCE_ROOM_UI;
-                clearMultiplayerRoomEvents();
-                window.__shpdMultiplayerRooms.lastError = "";
-                window.__shpdMultiplayerRooms.pendingRequest = {
-                    mode,
-                    roomName: String(roomName || ""),
-                    playerName: String(playerName || ""),
-                    requestedAt: Date.now()
-                };
-                return createMultiplayerRoomSession(mode, input).then((session) => {
+            function startRequestedMultiplayerRoomSession(session, sessionSource) {
                     if (session.source !== sessionSource) {
                         session.source = sessionSource;
                         saveMultiplayerRoomSession(session);
@@ -4121,13 +4232,57 @@
                         phase: session.phase
                     });
                     return session;
-                }).catch((error) => {
+            }
+
+            function requestMultiplayerRoomSession(mode, roomName, password, playerName, source) {
+                const input = { roomName, password, playerName };
+                const sessionSource = source === MULTIPLAYER_ROOM_SOURCE_DEV_URL
+                        ? MULTIPLAYER_ROOM_SOURCE_DEV_URL
+                        : MULTIPLAYER_ROOM_SOURCE_ROOM_UI;
+                clearMultiplayerRoomEvents();
+                window.__shpdMultiplayerRooms.lastError = "";
+                window.__shpdMultiplayerRooms.pendingRequest = {
+                    mode,
+                    roomName: String(roomName || ""),
+                    playerName: String(playerName || ""),
+                    requestedAt: Date.now()
+                };
+                return createMultiplayerRoomSession(mode, input).then((session) =>
+                    startRequestedMultiplayerRoomSession(session, sessionSource)).catch((error) => {
                     window.__shpdMultiplayerRooms.pendingRequest = null;
                     window.__shpdMultiplayerRooms.lastError = browserDataBackupErrorMessage(error);
                     pushMultiplayerRoomEvent("room-error", [window.__shpdMultiplayerRooms.lastError]);
                     logWebParity("multiplayer room session failed", {
                         mode,
                         roomName: String(roomName || ""),
+                        error: window.__shpdMultiplayerRooms.lastError
+                    });
+                    return null;
+                });
+            }
+
+            function requestMultiplayerRoomRejoin(source) {
+                const sessionSource = source === MULTIPLAYER_ROOM_SOURCE_DEV_URL
+                        ? MULTIPLAYER_ROOM_SOURCE_DEV_URL
+                        : MULTIPLAYER_ROOM_SOURCE_ROOM_UI;
+                clearMultiplayerRoomEvents();
+                window.__shpdMultiplayerRooms.lastError = "";
+                window.__shpdMultiplayerRooms.pendingRequest = {
+                    mode: "rejoin",
+                    roomName: "",
+                    playerName: "",
+                    requestedAt: Date.now()
+                };
+                return createMultiplayerRoomRejoinSession().then((session) => {
+                    window.__shpdMultiplayerRooms.pendingRequest.roomName = String(session.roomName || "");
+                    window.__shpdMultiplayerRooms.pendingRequest.playerName = String(session.playerName || "");
+                    return startRequestedMultiplayerRoomSession(session, sessionSource);
+                }).catch((error) => {
+                    clearStoredRoomRejoinCandidate();
+                    window.__shpdMultiplayerRooms.pendingRequest = null;
+                    window.__shpdMultiplayerRooms.lastError = browserDataBackupErrorMessage(error);
+                    pushMultiplayerRoomEvent("room-error", [window.__shpdMultiplayerRooms.lastError]);
+                    logWebParity("multiplayer room rejoin failed", {
                         error: window.__shpdMultiplayerRooms.lastError
                     });
                     return null;
@@ -4592,6 +4747,8 @@
                 pendingRequest: null,
                 lastError: "",
                 requestRoom: requestMultiplayerRoomSession,
+                hasRejoinCandidate: hasStoredRoomRejoinCandidate,
+                requestRejoin: requestMultiplayerRoomRejoin,
                 requestAction: requestMultiplayerRoomAction,
                 pollEvent: function() {
                     return multiplayerRoomEvents.shift() || null;

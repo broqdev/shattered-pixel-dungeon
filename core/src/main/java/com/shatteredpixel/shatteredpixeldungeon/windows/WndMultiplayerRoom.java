@@ -89,7 +89,9 @@ public class WndMultiplayerRoom extends Window {
 	private RenderedTextBlock errorText;
 	private RedButton backButton;
 	private RedButton submitButton;
+	private RedButton rejoinButton;
 	private boolean pending;
+	private boolean pendingRejoin;
 
 	public WndMultiplayerRoom(Mode mode) {
 		super();
@@ -129,6 +131,17 @@ public class WndMultiplayerRoom extends Window {
 				submit();
 			}
 		};
+		if (mode == Mode.JOIN && Game.platform != null && Game.platform.multiplayerRoomRejoinAvailable()) {
+			rejoinButton = new RedButton(Messages.get(this, "rejoin")){
+				@Override
+				protected void onClick() {
+					rejoin();
+				}
+			};
+			add(rejoinButton);
+			rejoinButton.setRect(MARGIN, pos, inputWidth, BUTTON_HEIGHT);
+			pos += BUTTON_HEIGHT + MARGIN;
+		}
 		add(backButton);
 		add(submitButton);
 		backButton.setRect(MARGIN, pos, (inputWidth - MARGIN) / 2f, BUTTON_HEIGHT);
@@ -282,8 +295,38 @@ public class WndMultiplayerRoom extends Window {
 			return;
 		}
 		pending = true;
+		pendingRejoin = false;
 		submitButton.enable(false);
+		if (rejoinButton != null) {
+			rejoinButton.enable(false);
+		}
 		setStatus(Messages.get(this, mode.pendingKey));
+	}
+
+	private void rejoin() {
+		if (pending) {
+			return;
+		}
+		webParityLog("multiplayer room entry rejoin submit");
+		if (Game.platform == null || !Game.platform.requestMultiplayerRoomRejoin()) {
+			hideRejoinButton();
+			setError(Messages.get(this, "rejoin_unavailable"));
+			return;
+		}
+		pending = true;
+		pendingRejoin = true;
+		submitButton.enable(false);
+		if (rejoinButton != null) {
+			rejoinButton.enable(false);
+		}
+		setStatus(Messages.get(this, "rejoining"));
+	}
+
+	private void hideRejoinButton() {
+		if (rejoinButton != null) {
+			rejoinButton.visible = false;
+			rejoinButton.active = false;
+		}
 	}
 
 	private String validate(String roomName, String password, String playerName) {
@@ -385,9 +428,16 @@ public class WndMultiplayerRoom extends Window {
 		if ("room-status".equals(parts[0]) && parts.length >= 2) {
 			setStatus(WndMultiplayerLobby.statusMessage(parts[1]));
 		} else if ("room-error".equals(parts[0]) && parts.length >= 2) {
+			boolean wasRejoin = pendingRejoin;
 			pending = false;
+			pendingRejoin = false;
 			if (submitButton != null) {
 				submitButton.enable(true);
+			}
+			if (wasRejoin) {
+				hideRejoinButton();
+			} else if (rejoinButton != null && rejoinButton.visible) {
+				rejoinButton.enable(true);
 			}
 			setError(WndMultiplayerLobby.statusMessage(parts[1]));
 		} else if ("room-lobby".equals(parts[0])) {
@@ -401,15 +451,26 @@ public class WndMultiplayerRoom extends Window {
 			WebMultiplayer.RoomLaunch launch = WebMultiplayer.RoomLaunch.fromEvent(parts);
 			if (!launch.valid) {
 				pending = false;
+				pendingRejoin = false;
 				submitButton.enable(true);
+				if (rejoinButton != null && rejoinButton.visible) {
+					rejoinButton.enable(true);
+				}
 				setError(Messages.get(WndMultiplayerLobby.class, "launch_invalid"));
 			} else if (WebMultiplayer.launchRoomRun(launch)) {
 				hide();
 			} else if (launch.watcher) {
 				setStatus(Messages.get(WndMultiplayerLobby.class, "launch_waiting"));
 			} else {
+				boolean wasRejoin = pendingRejoin;
 				pending = false;
+				pendingRejoin = false;
 				submitButton.enable(true);
+				if (wasRejoin) {
+					hideRejoinButton();
+				} else if (rejoinButton != null && rejoinButton.visible) {
+					rejoinButton.enable(true);
+				}
 				setError(Messages.get(WndMultiplayerLobby.class, "launch_unavailable"));
 			}
 		}
@@ -440,6 +501,7 @@ public class WndMultiplayerRoom extends Window {
 		logControlBounds("input", "room_password", passwordInput);
 		logControlBounds("input", "player_name", playerNameInput);
 		logControlBounds("button", "back", backButton);
+		logControlBounds("button", "rejoin", rejoinButton);
 		logControlBounds("button", "submit", submitButton);
 	}
 

@@ -65,6 +65,8 @@ public class WebIndexTemplateTest {
 		assertTrue(html.contains("get playerSeatOrder()"));
 		assertTrue(html.contains("get roomEpoch()"));
 		assertTrue(html.contains("requestRoom: requestMultiplayerRoomSession"));
+		assertTrue(html.contains("hasRejoinCandidate: hasStoredRoomRejoinCandidate"));
+		assertTrue(html.contains("requestRejoin: requestMultiplayerRoomRejoin"));
 		assertTrue(html.contains("requestAction: requestMultiplayerRoomAction"));
 		assertTrue(html.contains("pollEvent: function()"));
 		assertTrue(html.contains("function clearMultiplayerRoomEvents()"));
@@ -83,12 +85,14 @@ public class WebIndexTemplateTest {
 		assertTrue(html.contains("function deriveMultiplayerReconnectTokenProof(roomSecret, participantId, reconnectToken)"));
 		assertTrue(html.contains("function loadStoredRoomSessionForReconnect(normalizedRoomName, roomSecret, playerName)"));
 		assertTrue(html.contains("function loadStoredRoomSessionForActivePlayerReturn(normalizedRoomName, roomSecret, playerName)"));
+		assertTrue(html.contains("function loadStoredRoomSessionForRejoinCandidate()"));
 		assertTrue(html.contains("function loadStoredRoomSessionForWatchReturn(normalizedRoomName, roomSecret, playerName)"));
 		assertTrue(html.contains("function roomReturnDeadlineExpired(deadlineMs)"));
 		assertTrue(html.contains("function storedRoomSessionReconnectDeadlineMs(session)"));
 		assertTrue(html.contains("function markStoredRoomSessionReconnectDeadline(session, deadlineMs, reason)"));
 		assertTrue(html.contains("function activeRunSnapshotAvailableForReturn(session)"));
 		assertTrue(html.contains("function markStoredActiveRoomSessionReturnDeadline(config, deadlineMs, reason)"));
+		assertTrue(html.contains("function createMultiplayerRoomRejoinSession()"));
 		assertTrue(html.contains("function createFreshJoinSessionFromExpiredReconnect(expiredSession)"));
 		assertTrue(html.contains("function markLobbyParticipantDisconnected(runtime, participantId)"));
 		assertTrue(html.contains("function markLobbyOwnerDisconnected(runtime, participantId)"));
@@ -293,6 +297,9 @@ public class WebIndexTemplateTest {
 		String roomCreation = sectionBetween(html,
 				"async function createMultiplayerRoomSession(mode, input)",
 				"const participantId =");
+		String roomRejoinCreation = sectionBetween(html,
+				"async function createMultiplayerRoomRejoinSession()",
+				"async function createMultiplayerRoomSession(mode, input)");
 		String roomTransport = sectionBetween(html,
 				"function startMultiplayerRoomTransport(session)",
 				"cleanupMultiplayerRoomEntry(\"new-room-request\")");
@@ -300,15 +307,16 @@ public class WebIndexTemplateTest {
 					"function installWebMultiplayer(launchConfig)",
 					"import(MULTIPLAYER_TRYSTERO_MODULE)");
 			String roomRequest = sectionBetween(html,
-					"return createMultiplayerRoomSession(mode, input).then((session) => {",
-					"}).catch((error) => {");
+					"function startRequestedMultiplayerRoomSession(session, sessionSource)",
+					"function requestMultiplayerRoomSession(mode, roomName, password, playerName, source)");
 
 			assertTrue(html.contains("function storedRoomSessionActivePlayerReturnCandidate(session,"));
 			assertTrue(html.contains("playerSeatIndexForParticipant(session.snapshot, session.participantId) >= 0"));
-			assertTrue(roomCreation.contains("const activeSession = loadStoredRoomSessionForActivePlayerReturn("));
-			assertTrue(roomCreation.contains("activeSession.mode = \"active-return\";"));
-			assertTrue(roomCreation.contains("activeSession.phase = \"active\";"));
-			assertTrue(roomCreation.contains("activeSession.watchReturnEligible = false;"));
+			assertFalse(roomCreation.contains("loadStoredRoomSessionForActivePlayerReturn("));
+			assertTrue(roomRejoinCreation.contains("candidate.kind === \"active-return\""));
+			assertTrue(roomRejoinCreation.contains("session.mode = \"active-return\";"));
+			assertTrue(roomRejoinCreation.contains("session.phase = \"active\";"));
+			assertTrue(roomRejoinCreation.contains("session.watchReturnEligible = false;"));
 			assertFalse(roomCreation.contains("loadStoredRoomSessionForWatchReturn"));
 			assertFalse(roomCreation.contains("watchReturnSession.mode = \"watch-return\""));
 			assertTrue(roomRequest.contains("session.mode === \"active-return\" && session.phase === \"active\""));
@@ -570,9 +578,9 @@ public class WebIndexTemplateTest {
 			assertTrue(createSession.contains("const intentionallyLeft = storedRoomIdentityWasIntentionallyLeft(identity);"));
 			assertTrue(createSession.contains("if (mode === \"join\" && intentionallyLeft)"));
 			assertTrue(createSession.contains("removeStoredRoomSessionsForIdentity(identity);"));
-			assertTrue(createSession.contains("if (mode === \"join\" && !intentionallyLeft)"));
-			assertTrue(createSession.indexOf("if (mode === \"join\" && intentionallyLeft)")
-					< createSession.indexOf("if (mode === \"join\" && !intentionallyLeft)"));
+			assertFalse(createSession.contains("if (mode === \"join\" && !intentionallyLeft)"));
+			assertFalse(createSession.contains("loadStoredRoomSessionForReconnect("));
+			assertFalse(createSession.contains("loadStoredRoomSessionForActivePlayerReturn("));
 			assertFalse(createSession.contains("clearStoredRoomIdentityLeaveTombstone(session);"));
 			assertTrue(reconnectCandidate.contains("session.intentionalLeave !== true"));
 			assertTrue(reconnectCandidate.contains("session.phase === \"lobby\" || session.phase === \"reconnect-handshake\""));
@@ -673,14 +681,14 @@ public class WebIndexTemplateTest {
 	}
 
 	@Test
-	public void expiredReconnectRetriesAsFreshJoinButInvalidTokenDoesNot() throws IOException {
+	public void roomRejoinUsesReconnectCandidateWithoutHijackingJoin() throws IOException {
 		String html = readIndexTemplate();
-		String freshJoin = sectionBetween(html,
-				"async function createFreshJoinSessionFromExpiredReconnect(expiredSession)",
+		String rejoinCreation = sectionBetween(html,
+				"async function createMultiplayerRoomRejoinSession()",
 				"async function createMultiplayerRoomSession(mode, input)");
-		String storedReconnect = sectionBetween(html,
-				"if (storedSession) {",
-				"saveMultiplayerRoomSession(storedSession);");
+		String joinCreation = sectionBetween(html,
+				"async function createMultiplayerRoomSession(mode, input)",
+				"const participantId =");
 		String reconnectHandler = sectionBetween(html,
 				"if (payload.type === \"room-reconnect-request\"",
 				"if (payload.type === \"room-join-request\" && session.phase === \"lobby\"");
@@ -694,17 +702,16 @@ public class WebIndexTemplateTest {
 				"function reconnectRejectionMessage(reason)",
 				"function rejectRoomCreateConflict(runtime)");
 
-		assertTrue(freshJoin.contains("mode: \"join\""));
-		assertTrue(freshJoin.contains("phase: \"join-handshake\""));
-		assertTrue(freshJoin.contains("joinRequestId: \"jr-\" + multiplayerRandomBase64Url(12)"));
-		assertTrue(freshJoin.contains("deriveMultiplayerReconnectTokenProof("));
-		assertTrue(freshJoin.contains("expiredSession.roomSecret"));
-		assertTrue(freshJoin.contains("expiredSession.transportRoomId"));
-		assertTrue(freshJoin.contains("saveMultiplayerRoomSession(session);"));
-		assertTrue(freshJoin.contains("return session;"));
-		assertTrue(storedReconnect.contains("if (!storedSession.reconnectToken)"));
-		assertTrue(storedReconnect.contains("storedSession.reconnectTokenProof = \"\";"));
-		assertTrue(storedReconnect.contains("} else if (!storedSession.reconnectTokenProof)"));
+		assertTrue(rejoinCreation.contains("const candidate = loadStoredRoomSessionForRejoinCandidate();"));
+		assertTrue(rejoinCreation.contains("candidate.kind === \"reconnect\""));
+		assertTrue(rejoinCreation.contains("session.mode = \"rejoin\";"));
+		assertTrue(rejoinCreation.contains("session.phase = \"reconnect-handshake\";"));
+		assertTrue(rejoinCreation.contains("session.reconnectRequestId = \"rr-\" + multiplayerRandomBase64Url(12);"));
+		assertTrue(rejoinCreation.contains("if (!session.reconnectToken)"));
+		assertTrue(rejoinCreation.contains("session.reconnectTokenProof = \"\";"));
+		assertTrue(rejoinCreation.contains("} else if (!session.reconnectTokenProof)"));
+		assertFalse(joinCreation.contains("loadStoredRoomSessionForReconnect("));
+		assertFalse(joinCreation.contains("loadStoredRoomSessionForActivePlayerReturn("));
 		assertTrue(reconnectHandler.contains("session.roomOwnerParticipantId === session.participantId"));
 		assertTrue(reconnectHandler.contains("String(payload.targetParticipantId || \"\") === session.snapshot.roomOwnerParticipantId"));
 		assertTrue(reconnectApply.contains("participant.connected = true;"));
@@ -713,7 +720,8 @@ public class WebIndexTemplateTest {
 		assertTrue(reconnectReasons.contains("function reconnectRejectedReasonIsExpired(reason)"));
 		assertTrue(reconnectReasons.contains("normalized === \"reconnect expired\""));
 		assertTrue(reconnectReasons.contains("normalized === \"reconnect expired. join again.\""));
-		assertTrue(reconnectRejected.contains("const retryFreshJoin = reconnectRejectedReasonIsExpired(payload.reason);"));
+		assertTrue(reconnectRejected.contains("const retryFreshJoin = session.mode !== \"rejoin\""));
+		assertTrue(reconnectRejected.contains("&& reconnectRejectedReasonIsExpired(payload.reason);"));
 		assertTrue(reconnectRejected.contains("const freshSession = await createFreshJoinSessionFromExpiredReconnect(session);"));
 		assertTrue(reconnectRejected.contains("runtime.session = freshSession;"));
 		assertTrue(reconnectRejected.contains("window.__shpdMultiplayerRooms.currentSession = freshSession;"));
