@@ -113,6 +113,45 @@ public class DungeonSaveAllOrderTest {
 				"saveLevel:1",
 				"saveGame:1",
 				"setGameInProgress:1"
+			), calls);
+	}
+
+	@Test
+	public void transientMultiplayerSlotDoesNotBecomeGameInProgress() throws Exception {
+		ArrayList<String> calls = new ArrayList<>();
+
+		Dungeon.saveAll(GamesInProgress.TRANSIENT_MULTIPLAYER_SLOT, new Dungeon.SaveAllSteps() {
+			@Override
+			public void fixTime() {
+				calls.add("fixTime");
+			}
+
+			@Override
+			public void updateLevelExplored() {
+				calls.add("updateLevelExplored");
+			}
+
+			@Override
+			public void saveLevel(int save) {
+				calls.add("saveLevel:" + save);
+			}
+
+			@Override
+			public void saveGame(int save) {
+				calls.add("saveGame:" + save);
+			}
+
+			@Override
+			public void setGameInProgress(int save) {
+				calls.add("setGameInProgress:" + save);
+			}
+		});
+
+		assertEquals(Arrays.asList(
+				"fixTime",
+				"updateLevelExplored",
+				"saveLevel:0",
+				"saveGame:0"
 		), calls);
 	}
 
