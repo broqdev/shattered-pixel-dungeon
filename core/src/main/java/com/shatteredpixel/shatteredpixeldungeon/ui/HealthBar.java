@@ -86,4 +86,10 @@ public class HealthBar extends Component {
 
 		level(health/max, (health+shield)/max);
 	}
+
+	public void alpha(float value) {
+		Bg.alpha(value);
+		Shld.alpha(value);
+		Hp.alpha(value);
+	}
 }

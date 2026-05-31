@@ -40,6 +40,8 @@ public class GamesInProgress {
 	private static final Logger LOG = Logger.getLogger(GamesInProgress.class.getName());
 	
 	public static final int MAX_SLOTS = HeroClass.values().length;
+	public static final int TRANSIENT_MULTIPLAYER_SLOT = 0;
+	public static final int WATCHER_SLOT = TRANSIENT_MULTIPLAYER_SLOT;
 	
 	//null means we have loaded info and it is empty, no entry means unknown.
 	private static HashMap<Integer, Info> slotStates = new HashMap<>();
@@ -68,6 +70,14 @@ public class GamesInProgress {
 	
 	public static String gameFolder( int slot ){
 		return String.format(Locale.ENGLISH, GAME_FOLDER, slot);
+	}
+
+	public static boolean isWatcherSlot( int slot ) {
+		return slot == WATCHER_SLOT;
+	}
+
+	public static boolean isTransientMultiplayerSlot( int slot ) {
+		return slot == TRANSIENT_MULTIPLAYER_SLOT;
 	}
 	
 	public static String gameFile( int slot ){

@@ -731,7 +731,7 @@ public abstract class Level implements Bundlable {
 			//if we don't specify a type, prefer to return any entrance
 			if (type == null && LevelTransition.isEntrance(transition.type)){
 				return transition;
-			} else if (transition.type == type){
+			} else if (LevelTransition.matches(transition.type, type)){
 				return transition;
 			}
 		}
@@ -743,7 +743,7 @@ public abstract class Level implements Bundlable {
 			return null;
 		}
 		for (LevelTransition transition : transitions) {
-			if (transition.type == type) {
+			if (LevelTransition.matches(transition.type, type)) {
 				return transition;
 			}
 		}
@@ -766,8 +766,8 @@ public abstract class Level implements Bundlable {
 			switch (map[i]) {
 				case Terrain.ENTRANCE:
 				case Terrain.ENTRANCE_SP:
-					if (type == LevelTransition.Type.REGULAR_ENTRANCE
-							|| type == LevelTransition.Type.BRANCH_ENTRANCE) {
+					if (LevelTransition.matches(type, LevelTransition.Type.REGULAR_ENTRANCE)
+							|| LevelTransition.matches(type, LevelTransition.Type.BRANCH_ENTRANCE)) {
 						return i;
 					}
 					break;

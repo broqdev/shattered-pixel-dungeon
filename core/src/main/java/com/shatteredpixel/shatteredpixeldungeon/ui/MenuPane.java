@@ -219,6 +219,10 @@ public class MenuPane extends Component {
 	}
 
 	public void flashForPage( Document doc, String page ){
+		if (doc == null || page == null || doc.isPageRead(page)){
+			btnJournal.clearFlash();
+			return;
+		}
 		btnJournal.flashingDoc = doc;
 		btnJournal.flashingPage = page;
 	}
@@ -283,10 +287,23 @@ public class MenuPane extends Component {
 
 		private float time;
 
+		private void clearFlash() {
+			flashingDoc = null;
+			flashingPage = null;
+			time = 0;
+			if (journalIcon != null) journalIcon.am = 1;
+			if (keyIcon != null) keyIcon.am = 1;
+			if (bg != null) bg.resetColor();
+			if (keyIcon != null && journalIcon != null && bg != null) updateKeyDisplay();
+		}
+
 		@Override
 		public void update() {
 			super.update();
 
+			if (flashingPage != null && (flashingDoc == null || flashingDoc.isPageRead(flashingPage))){
+				clearFlash();
+			}
 			if (flashingPage != null){
 				journalIcon.am = (float)Math.abs(Math.cos( StatusPane.FLASH_RATE * (time += Game.elapsed) ));
 				keyIcon.am = journalIcon.am;
@@ -327,6 +344,9 @@ public class MenuPane extends Component {
 		protected void onClick() {
 			time = 0;
 			keyIcon.am = journalIcon.am = 1;
+			if (flashingPage != null && (flashingDoc == null || flashingDoc.isPageRead(flashingPage))){
+				clearFlash();
+			}
 			if (flashingPage != null){
 				if (flashingDoc == Document.ALCHEMY_GUIDE){
 					WndJournal.last_index = 2;

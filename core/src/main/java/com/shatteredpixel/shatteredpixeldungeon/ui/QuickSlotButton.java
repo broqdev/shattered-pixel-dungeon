@@ -83,6 +83,9 @@ public class QuickSlotButton extends Button {
 		slot = new ItemSlot() {
 			@Override
 			protected void onClick() {
+				if (GameScene.watcherView()) {
+					return;
+				}
 				if (!Dungeon.hero.isAlive() || !Dungeon.hero.ready){
 					return;
 				}
@@ -217,6 +220,9 @@ public class QuickSlotButton extends Button {
 	
 	@Override
 	protected void onClick() {
+		if (GameScene.watcherView()) {
+			return;
+		}
 		if (Dungeon.hero.ready && !GameScene.cancel()) {
 			GameScene.selectItem(itemSelector);
 		}

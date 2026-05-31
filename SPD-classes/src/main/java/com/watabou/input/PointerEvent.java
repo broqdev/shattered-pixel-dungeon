@@ -23,6 +23,7 @@ package com.watabou.input;
 
 import com.badlogic.gdx.Input;
 import com.watabou.noosa.Game;
+import com.watabou.noosa.TextInput;
 import com.watabou.noosa.ui.Cursor;
 import com.watabou.utils.PointF;
 import com.watabou.utils.Signal;
@@ -183,6 +184,7 @@ public class PointerEvent {
 			}
 			if (clearKeyboardThisPress){
 				//most press events should clear the keyboard
+				TextInput.clearActiveInput();
 				Game.platform.setOnscreenKeyboardVisible(false, false);
 			}
 		}

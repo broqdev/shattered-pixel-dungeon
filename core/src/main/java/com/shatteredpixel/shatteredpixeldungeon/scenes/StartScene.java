@@ -29,6 +29,7 @@ import com.shatteredpixel.shatteredpixeldungeon.ShatteredPixelDungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroSubClass;
 import com.shatteredpixel.shatteredpixeldungeon.journal.Journal;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
+import com.shatteredpixel.shatteredpixeldungeon.multiplayer.WebMultiplayer;
 import com.shatteredpixel.shatteredpixeldungeon.ui.Button;
 import com.shatteredpixel.shatteredpixeldungeon.ui.ExitButton;
 import com.shatteredpixel.shatteredpixeldungeon.ui.Icons;
@@ -59,6 +60,10 @@ public class StartScene extends PixelScene {
 	@Override
 	public void create() {
 		super.create();
+
+		if (WebMultiplayer.resumeWatcherIfRequested() || WebMultiplayer.resumeCloneIfRequested()) {
+			return;
+		}
 		
 		Badges.loadGlobal();
 		Journal.loadGlobal();

@@ -215,6 +215,7 @@ public class WndTextInput extends Window {
 
 		textBox.setRect(MARGIN, textBox.top(), textBoxWidth, inputHeight);
 
+		textBox.focus();
 		PointerEvent.clearKeyboardThisPress = false;
 
 	}

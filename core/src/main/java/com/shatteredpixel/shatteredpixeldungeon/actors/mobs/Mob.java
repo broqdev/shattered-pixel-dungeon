@@ -86,6 +86,7 @@ import com.shatteredpixel.shatteredpixeldungeon.levels.Level;
 import com.shatteredpixel.shatteredpixeldungeon.levels.features.Chasm;
 import com.shatteredpixel.shatteredpixeldungeon.levels.traps.Trap;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
+import com.shatteredpixel.shatteredpixeldungeon.multiplayer.WebMultiplayer;
 import com.shatteredpixel.shatteredpixeldungeon.plants.Swiftthistle;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.CharSprite;
@@ -298,12 +299,12 @@ public abstract class Mob extends Char {
 			}
 			for (Char ch : Actor.chars()) {
 				if (ch != this && fieldOfView[ch.pos] &&
-						ch.buff(StoneOfAggression.Aggression.class) != null) {
-					state = HUNTING;
-					return ch;
+							ch.buff(StoneOfAggression.Aggression.class) != null) {
+						state = HUNTING;
+						return ch;
+					}
 				}
 			}
-		}
 
 		//find a new enemy if..
 		boolean newEnemy = false;
@@ -924,6 +925,8 @@ public abstract class Mob extends Char {
 				}
 			}
 		}
+
+		WebMultiplayer.publishReplayEvent("kill", pos, "Watch Target defeated an enemy.");
 	}
 
 	public float lootChance(){
@@ -1508,4 +1511,3 @@ public abstract class Mob extends Char {
 		heldAllies.clear();
 	}
 }
-

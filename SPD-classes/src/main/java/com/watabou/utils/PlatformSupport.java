@@ -88,6 +88,110 @@ public abstract class PlatformSupport {
 		return BrowserDataBackup.UNAVAILABLE;
 	}
 
+	public boolean multiplayerEnabled(){
+		return false;
+	}
+
+	public boolean multiplayerRoomEntryAvailable(){
+		return false;
+	}
+
+	public boolean requestMultiplayerRoomEntry(String mode, String roomName, String password, String playerName){
+		return false;
+	}
+
+	public String pollMultiplayerRoomEvent(){
+		return null;
+	}
+
+	public boolean requestMultiplayerRoomAction(String action, String value){
+		return false;
+	}
+
+	public void leaveMultiplayerRoomEntry(){
+		// Web-only by default.
+	}
+
+	public String multiplayerPlayerId(){
+		return "";
+	}
+
+	public String multiplayerPlayerName(){
+		return "";
+	}
+
+	public String multiplayerPlayerColor(){
+		return "";
+	}
+
+	public String multiplayerPlayerSeatOrder(){
+		return "";
+	}
+
+	public int multiplayerRoomEpoch(){
+		return 0;
+	}
+
+	public boolean multiplayerWatcher(){
+		return false;
+	}
+
+	public String multiplayerWatchTargetId(){
+		return "";
+	}
+
+	public void announceMultiplayerProgress(int slot, int depth, int branch, int turns){
+		// Web-only by default.
+	}
+
+	public void announceMultiplayerReplayEvent(String kind, int depth, int branch, int cell, String message){
+		// Web-only by default.
+	}
+
+	public String pollMultiplayerEvent(){
+		return null;
+	}
+
+	public int consumeMultiplayerResumeSlot(){
+		return 0;
+	}
+
+	public boolean consumeMultiplayerWatcherResumeRequested(){
+		return false;
+	}
+
+	public void requestMultiplayerWatcherKeyframe(){
+		// Web-only by default.
+	}
+
+	public void sendMultiplayerWatcherKeyframe(String watcherId, String requestId){
+		// Web-only by default.
+	}
+
+	public void sendMultiplayerWatcherKeyframe(String watcherId, String requestId, String snapshotFilesJson){
+		sendMultiplayerWatcherKeyframe(watcherId, requestId);
+	}
+
+	public void switchMultiplayerWatchTarget(String targetId){
+		// Web-only by default.
+	}
+
+	public boolean continueMultiplayerAsWatcher(String targetId){
+		return false;
+	}
+
+	public void markMultiplayerWatchReturnEligible(String reason){
+		// Web-only by default.
+	}
+
+	public void disconnectActiveMultiplayerGame(){
+		// Web-only by default.
+	}
+
+	public void finishActiveMultiplayerRoom(){
+		disconnectActiveMultiplayerGame();
+	}
+
 	public interface BrowserDataBackup {
 
 		BrowserDataBackup UNAVAILABLE = new BrowserDataBackup() {
@@ -157,8 +261,13 @@ public abstract class PlatformSupport {
 	}
 
 	public void setOnscreenKeyboardVisible(boolean value, boolean multiline){
+		setTextInputActive(value, multiline);
 		//by default ignore multiline
 		Gdx.input.setOnscreenKeyboardVisible(value, Input.OnscreenKeyboardType.Default);
+	}
+
+	protected void setTextInputActive(boolean value, boolean multiline){
+		// Most platforms do not need a separate browser focus contract.
 	}
 
 	//TODO should consider spinning this into its own class, rather than platform support getting ever bigger

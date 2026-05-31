@@ -78,6 +78,7 @@ import com.shatteredpixel.shatteredpixeldungeon.levels.rooms.special.PitRoom;
 import com.shatteredpixel.shatteredpixeldungeon.levels.rooms.special.SpecialRoom;
 import com.shatteredpixel.shatteredpixeldungeon.levels.rooms.special.WeakFloorRoom;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
+import com.shatteredpixel.shatteredpixeldungeon.multiplayer.WebMultiplayer;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.InterlevelScene;
 import com.shatteredpixel.shatteredpixeldungeon.tiles.CustomTilemap;
@@ -95,13 +96,17 @@ import com.watabou.utils.PathFinder;
 import com.watabou.utils.Random;
 import com.watabou.utils.SparseArray;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Date;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.TimeZone;
 import java.util.logging.Logger;
 
@@ -115,6 +120,9 @@ public class Dungeon {
 	}
 
 	private static volatile SaveLifecycle saveLifecycle = SaveLifecycle.IDLE;
+	private static boolean transientRunStateActive;
+	private static Bundle transientRunGame;
+	private static final LinkedHashMap<String, Bundle> transientRunLevels = new LinkedHashMap<>();
 
 	interface SaveAllSteps {
 		void fixTime();
@@ -150,6 +158,92 @@ public class Dungeon {
 			GamesInProgress.set(save);
 		}
 	};
+
+	public static void beginTransientRunState() {
+		transientRunStateActive = true;
+		transientRunGame = null;
+		transientRunLevels.clear();
+	}
+
+	public static void clearTransientRunState() {
+		transientRunStateActive = false;
+		transientRunGame = null;
+		transientRunLevels.clear();
+	}
+
+	public static boolean usesTransientRunState(int save) {
+		return transientRunStateActive && GamesInProgress.isTransientMultiplayerSlot(save);
+	}
+
+	public static String transientRunSnapshotFilesJson(int save) {
+		if (!usesTransientRunState(save) || transientRunGame == null) {
+			return "";
+		}
+		try {
+			StringBuilder json = new StringBuilder();
+			json.append('{');
+			boolean[] first = new boolean[]{ true };
+			appendTransientRunFile(json, first, GamesInProgress.gameFile(save), transientRunGame);
+			for (Map.Entry<String, Bundle> entry : transientRunLevels.entrySet()) {
+				appendTransientRunFile(json, first, entry.getKey(), entry.getValue());
+			}
+			json.append('}');
+			return json.toString();
+		} catch (IOException e) {
+			webParityLog("transient run snapshot failed save=" + save
+					+ " error=" + e.getClass().getName());
+			return "";
+		}
+	}
+
+	private static void appendTransientRunFile(StringBuilder json, boolean[] first,
+			String fileName, Bundle bundle) throws IOException {
+		if (bundle == null) {
+			return;
+		}
+		if (!first[0]) {
+			json.append(',');
+		}
+		first[0] = false;
+		json.append('"').append(jsonEscape(fileName)).append('"')
+				.append(':')
+				.append('"').append(jsonEscape(bundleToBase64(bundle))).append('"');
+	}
+
+	private static String bundleToBase64(Bundle bundle) throws IOException {
+		ByteArrayOutputStream output = new ByteArrayOutputStream();
+		if (!Bundle.write(bundle, output)) {
+			throw new IOException("bundle write failed");
+		}
+		return Base64.getEncoder().encodeToString(output.toByteArray());
+	}
+
+	private static String jsonEscape(String value) {
+		StringBuilder escaped = new StringBuilder(value == null ? 0 : value.length());
+		for (int i = 0; value != null && i < value.length(); i++) {
+			char c = value.charAt(i);
+			switch (c) {
+				case '\\':
+					escaped.append("\\\\");
+					break;
+				case '"':
+					escaped.append("\\\"");
+					break;
+				case '\n':
+					escaped.append("\\n");
+					break;
+				case '\r':
+					escaped.append("\\r");
+					break;
+				case '\t':
+					escaped.append("\\t");
+					break;
+				default:
+					escaped.append(c);
+			}
+		}
+		return escaped.toString();
+	}
 
 	//enum of items which have limited spawns, records how many have spawned
 	//could all be their own separate numbers, but this allows iterating, much nicer for bundling/initializing.
@@ -280,6 +374,11 @@ public class Dungeon {
 			customSeedText = "";
 			seed = DungeonSeed.randomSeed();
 		}
+	}
+
+	public static void initSeed(String seedText) {
+		customSeedText = seedText == null ? "" : seedText;
+		seed = DungeonSeed.convertFromText(customSeedText);
 	}
 	
 	public static void init() {
@@ -574,6 +673,8 @@ public class Dungeon {
 			But when they do the user will get a nice 'report this issue' dialogue, and I can fix the bug.*/
 		}
 		webParityLog("switchLevel complete " + saveSnapshot(GamesInProgress.curSlot));
+		WebMultiplayer.onLocalFloorChanged();
+		WebMultiplayer.publishReplayEvent("transition", hero.pos, "Watch Target changed floor.");
 	}
 
 	static LevelPlacement resolveLevelPlacement(final Level level, int pos) {
@@ -787,8 +888,12 @@ public class Dungeon {
 			Badges.saveLocal( badges );
 			bundle.put( BADGES, badges );
 			
-			FileUtils.bundleToFile( GamesInProgress.gameFile(save), bundle);
-			
+			if (usesTransientRunState(save)) {
+				transientRunGame = bundle;
+			} else if (!GamesInProgress.isTransientMultiplayerSlot(save)) {
+				FileUtils.bundleToFile( GamesInProgress.gameFile(save), bundle);
+			}
+				
 		} catch (IOException e) {
 			GamesInProgress.setUnknown( save );
 			ShatteredPixelDungeon.reportException(e);
@@ -798,8 +903,13 @@ public class Dungeon {
 	public static void saveLevel( int save ) throws IOException {
 		Bundle bundle = new Bundle();
 		bundle.put( LEVEL, level );
-		
-		FileUtils.bundleToFile(GamesInProgress.depthFile( save, depth, branch ), bundle);
+
+		String depthFile = GamesInProgress.depthFile( save, depth, branch );
+		if (usesTransientRunState(save)) {
+			transientRunLevels.put(depthFile, bundle);
+		} else if (!GamesInProgress.isTransientMultiplayerSlot(save)) {
+			FileUtils.bundleToFile(depthFile, bundle);
+		}
 	}
 	
 	public static void saveAll() throws IOException {
@@ -825,7 +935,9 @@ public class Dungeon {
 			steps.saveLevel( save );
 			steps.saveGame( save );
 
-			steps.setGameInProgress( save );
+			if (!GamesInProgress.isTransientMultiplayerSlot(save)) {
+				steps.setGameInProgress( save );
+			}
 			webParityLog("saveAll complete " + saveSnapshot(save, reason));
 		} catch (IOException e) {
 			webParityLog("saveAll failed " + saveSnapshot(save, reason) + " error=" + e.getClass().getName());
@@ -841,7 +953,15 @@ public class Dungeon {
 	
 	public static void loadGame( int save, boolean fullLoad ) throws IOException {
 		
-		Bundle bundle = FileUtils.bundleFromFile( GamesInProgress.gameFile( save ) );
+		Bundle bundle;
+		if (usesTransientRunState(save)) {
+			if (transientRunGame == null) {
+				throw new IOException("transient run game state does not exist");
+			}
+			bundle = transientRunGame;
+		} else {
+			bundle = FileUtils.bundleFromFile( GamesInProgress.gameFile( save ) );
+		}
 
 		initialVersion = bundle.getInt( INIT_VER );
 		version = bundle.getInt( VERSION );
@@ -957,7 +1077,15 @@ public class Dungeon {
 				+ " depth=" + depth
 				+ " branch=" + branch
 				+ " depthFile=" + depthFile);
-		Bundle bundle = FileUtils.bundleFromFile( depthFile );
+		Bundle bundle;
+		if (usesTransientRunState(save)) {
+			bundle = transientRunLevels.get(depthFile);
+			if (bundle == null) {
+				throw new IOException("transient run level state does not exist");
+			}
+		} else {
+			bundle = FileUtils.bundleFromFile( depthFile );
+		}
 
 			Level level = (Level)bundle.get( LEVEL );
 			LevelSaveIdentity identity = resolveLevelSaveIdentity(save, depth, branch, depthFile, level, hero,
@@ -1107,6 +1235,12 @@ public class Dungeon {
 	}
 	
 	public static void deleteGame( int save, boolean deleteLevels ) {
+
+		if (GamesInProgress.isTransientMultiplayerSlot(save)) {
+			clearTransientRunState();
+			GamesInProgress.delete(save);
+			return;
+		}
 
 		if (deleteLevels) {
 			String folder = GamesInProgress.gameFolder(save);

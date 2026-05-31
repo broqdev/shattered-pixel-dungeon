@@ -501,6 +501,12 @@ public class InventoryPane extends Component {
 				return;
 			}
 
+			if (GameScene.watcherView()) {
+				GameScene.centerNextWndOnInvPane();
+				GameScene.show(new WndInfoItem(item));
+				return;
+			}
+
 			if (targeting){
 				if (targetingSlot == this){
 					int cell = QuickSlotButton.autoAim(lastTarget, item());
@@ -532,6 +538,11 @@ public class InventoryPane extends Component {
 
 		@Override
 		protected boolean onLongClick() {
+			if (GameScene.watcherView()) {
+				GameScene.centerNextWndOnInvPane();
+				GameScene.show(new WndInfoItem(item));
+				return true;
+			}
 			if (selector == null && item.defaultAction() != null) {
 				QuickSlotButton.set( item );
 				return true;
@@ -548,6 +559,10 @@ public class InventoryPane extends Component {
 		protected void onMiddleClick() {
 			if (lastBag != item && !lastBag.contains(item) && !item.isEquipped(Dungeon.hero)){
 				updateInventory();
+				return;
+			}
+
+			if (GameScene.watcherView()) {
 				return;
 			}
 
@@ -577,6 +592,10 @@ public class InventoryPane extends Component {
 		protected void onRightClick() {
 			if (lastBag != item && !lastBag.contains(item) && !item.isEquipped(Dungeon.hero)){
 				updateInventory();
+				return;
+			}
+
+			if (GameScene.watcherView()) {
 				return;
 			}
 

@@ -28,8 +28,14 @@ import com.shatteredpixel.shatteredpixeldungeon.ui.RedButton;
 import com.shatteredpixel.shatteredpixeldungeon.ui.RenderedTextBlock;
 import com.shatteredpixel.shatteredpixeldungeon.ui.Window;
 import com.watabou.noosa.Image;
+import com.watabou.utils.DeviceCompat;
+
+import java.util.ArrayList;
+import java.util.logging.Logger;
 
 public class WndOptions extends Window {
+
+	private static final Logger LOG = Logger.getLogger(WndOptions.class.getName());
 
 	protected static final int WIDTH_P = 120;
 	protected static final int WIDTH_L = 144;
@@ -75,6 +81,7 @@ public class WndOptions extends Window {
 
 	protected void layoutBody(float pos, String message, String... options){
 		int width = PixelScene.landscape() ? WIDTH_L : WIDTH_P;
+		ArrayList<RedButton> optionButtons = new ArrayList<>();
 
 		RenderedTextBlock tfMesage = PixelScene.renderTextBlock( 6 );
 		tfMesage.text(message, width);
@@ -111,11 +118,15 @@ public class WndOptions extends Window {
 			}
 
 			btn.enable(enabled(i));
+			optionButtons.add(btn);
 
 			pos += BUTTON_HEIGHT + MARGIN;
 		}
 
 		resize( width, (int)(pos - MARGIN) );
+		for (int i = 0; i < optionButtons.size(); i++) {
+			logOptionBounds(i, options[i], optionButtons.get(i));
+		}
 	}
 
 	protected boolean enabled( int index ){
@@ -136,5 +147,20 @@ public class WndOptions extends Window {
 
 	protected Image getIcon( int index ) {
 		return null;
+	}
+
+	private void logOptionBounds(int index, String label, RedButton button) {
+		if (DeviceCompat.webParityLoggingEnabled() && button != null && camera != null) {
+			float globalX = camera.x / camera.zoom + button.left();
+			float globalY = camera.y / camera.zoom + button.top();
+			LOG.info("[WEB-PARITY] wnd options option bounds index=" + index
+					+ " label=" + label
+					+ " x=" + globalX
+					+ " y=" + globalY
+					+ " width=" + button.width()
+					+ " height=" + button.height()
+					+ " centerX=" + (globalX + button.width() / 2f)
+					+ " centerY=" + (globalY + button.height() / 2f));
+		}
 	}
 }

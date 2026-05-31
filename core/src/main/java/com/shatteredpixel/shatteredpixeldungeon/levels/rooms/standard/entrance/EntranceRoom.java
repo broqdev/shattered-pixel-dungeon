@@ -104,7 +104,7 @@ public class EntranceRoom extends StandardRoom {
 		Random.pushGenerator();
 
 		//places the first guidebook page on floor 1
-		if (Dungeon.depth == 1 &&
+		if (Dungeon.depth == 1 && !Document.ADVENTURERS_GUIDE.allPagesFound() &&
 				(!Document.ADVENTURERS_GUIDE.isPageRead(Document.GUIDE_INTRO) || SPDSettings.intro() )){
 			int pos;
 			do {

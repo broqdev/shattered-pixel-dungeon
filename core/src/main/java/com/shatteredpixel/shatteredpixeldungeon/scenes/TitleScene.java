@@ -32,6 +32,7 @@ import com.shatteredpixel.shatteredpixeldungeon.effects.BannerSprites;
 import com.shatteredpixel.shatteredpixeldungeon.effects.Fireball;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Languages;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
+import com.shatteredpixel.shatteredpixeldungeon.multiplayer.WebMultiplayer;
 import com.shatteredpixel.shatteredpixeldungeon.services.news.News;
 import com.shatteredpixel.shatteredpixeldungeon.services.updates.AvailableUpdateData;
 import com.shatteredpixel.shatteredpixeldungeon.services.updates.Updates;
@@ -43,6 +44,7 @@ import com.shatteredpixel.shatteredpixeldungeon.ui.StyledButton;
 import com.shatteredpixel.shatteredpixeldungeon.ui.TitleBackground;
 import com.shatteredpixel.shatteredpixeldungeon.ui.Window;
 import com.shatteredpixel.shatteredpixeldungeon.windows.WndMessage;
+import com.shatteredpixel.shatteredpixeldungeon.windows.WndMultiplayerRoom;
 import com.shatteredpixel.shatteredpixeldungeon.windows.WndOptions;
 import com.shatteredpixel.shatteredpixeldungeon.windows.WndSettings;
 import com.shatteredpixel.shatteredpixeldungeon.windows.WndVictoryCongrats;
@@ -75,6 +77,7 @@ public class TitleScene extends PixelScene {
 	private Image signs;
 
 	private StyledButton btnPlay;
+	private StyledButton btnMultiplayer;
 	private StyledButton btnSupport;
 	private StyledButton btnRankings;
 	private StyledButton btnJournal;
@@ -94,6 +97,10 @@ public class TitleScene extends PixelScene {
 	public void create() {
 		
 		super.create();
+
+		if (WebMultiplayer.resumeWatcherIfRequested() || WebMultiplayer.resumeCloneIfRequested()) {
+			return;
+		}
 
 		Music.INSTANCE.playTracks(
 				new String[]{Assets.Music.THEME_1, Assets.Music.THEME_2},
@@ -183,6 +190,17 @@ public class TitleScene extends PixelScene {
 		btnPlay.icon(Icons.get(Icons.ENTER));
 		add(btnPlay);
 
+		if (multiplayerRoomEntryAvailable(Game.platform)) {
+			btnMultiplayer = new StyledButton(GREY_TR, Messages.get(this, "multiplayer")){
+				@Override
+				protected void onClick() {
+					showMultiplayerMenu();
+				}
+			};
+			btnMultiplayer.icon(Icons.get(Icons.CHALLENGE_COLOR));
+			add(btnMultiplayer);
+		}
+
 		btnSupport = new SupportButton(GREY_TR, Messages.get(this, "support"));
 		add(btnSupport);
 
@@ -248,10 +266,26 @@ public class TitleScene extends PixelScene {
 		}
 		
 		final int BTN_HEIGHT = 20;
-		int rowCountForGap = landscape() ? 3 : 4;
+		ArrayList<StyledButton> titleButtons = new ArrayList<>();
+		titleButtons.add(btnPlay);
+		if (btnMultiplayer != null) {
+			titleButtons.add(btnMultiplayer);
+		}
+		titleButtons.add(btnSupport);
+		titleButtons.add(btnRankings);
+		titleButtons.add(btnJournal);
+		titleButtons.add(btnNews);
+		titleButtons.add(btnChanges);
+		titleButtons.add(btnSettings);
+		titleButtons.add(btnAbout);
+		if (browserDataBackupAvailable) {
+			titleButtons.add(btnExportData);
+			titleButtons.add(btnImportData);
+		}
+
+		int rowCountForGap = titleButtonRowCount(titleButtons.size());
 		int gapDivisor = landscape() ? 3 : 5;
 		if (browserDataBackupAvailable) {
-			rowCountForGap = landscape() ? 4 : 6;
 			gapDivisor = landscape() ? 4 : 7;
 		}
 		int GAP = (int)(h - topRegion - rowCountForGap*BTN_HEIGHT)/3;
@@ -260,35 +294,10 @@ public class TitleScene extends PixelScene {
 
 		float buttonAreaWidth = landscape() ? PixelScene.MIN_WIDTH_L-6 : PixelScene.MIN_WIDTH_P-2;
 		float btnAreaLeft = insets.left + (w - buttonAreaWidth) / 2f;
-		if (landscape()) {
-			btnPlay.setRect(btnAreaLeft, insets.top + topRegion+GAP, (buttonAreaWidth/2)-1, BTN_HEIGHT);
-			align(btnPlay);
-			btnSupport.setRect(btnPlay.right()+2, btnPlay.top(), btnPlay.width(), BTN_HEIGHT);
-			btnRankings.setRect(btnPlay.left(), btnPlay.bottom()+ GAP, (float) (Math.floor(buttonAreaWidth/3f)-1), BTN_HEIGHT);
-			btnJournal.setRect(btnRankings.right()+2, btnRankings.top(), btnRankings.width(), BTN_HEIGHT);
-			btnNews.setRect(btnJournal.right()+2, btnJournal.top(), btnRankings.width(), BTN_HEIGHT);
-			btnSettings.setRect(btnRankings.left(), btnRankings.bottom() + GAP, btnRankings.width(), BTN_HEIGHT);
-			btnChanges.setRect(btnSettings.right()+2, btnSettings.top(), btnRankings.width(), BTN_HEIGHT);
-			btnAbout.setRect(btnChanges.right()+2, btnSettings.top(), btnRankings.width(), BTN_HEIGHT);
-			if (browserDataBackupAvailable) {
-				btnExportData.setRect(btnPlay.left(), btnSettings.bottom()+GAP, (buttonAreaWidth/2)-1, BTN_HEIGHT);
-				btnImportData.setRect(btnExportData.right()+2, btnExportData.top(), btnExportData.width(), BTN_HEIGHT);
-			}
-		} else {
-			btnPlay.setRect(btnAreaLeft, insets.top + topRegion+GAP, buttonAreaWidth, BTN_HEIGHT);
-			align(btnPlay);
-			btnSupport.setRect(btnPlay.left(), btnPlay.bottom()+ GAP, btnPlay.width(), BTN_HEIGHT);
-			btnRankings.setRect(btnPlay.left(), btnSupport.bottom()+ GAP, (btnPlay.width()/2)-1, BTN_HEIGHT);
-			btnJournal.setRect(btnRankings.right()+2, btnRankings.top(), btnRankings.width(), BTN_HEIGHT);
-			btnNews.setRect(btnRankings.left(), btnRankings.bottom()+ GAP, btnRankings.width(), BTN_HEIGHT);
-			btnChanges.setRect(btnNews.right()+2, btnNews.top(), btnNews.width(), BTN_HEIGHT);
-			btnSettings.setRect(btnNews.left(), btnNews.bottom()+GAP, btnRankings.width(), BTN_HEIGHT);
-			btnAbout.setRect(btnSettings.right()+2, btnSettings.top(), btnSettings.width(), BTN_HEIGHT);
-			if (browserDataBackupAvailable) {
-				btnExportData.setRect(btnSettings.left(), btnSettings.bottom()+GAP, btnSettings.width(), BTN_HEIGHT);
-				btnImportData.setRect(btnExportData.right()+2, btnExportData.top(), btnExportData.width(), BTN_HEIGHT);
-			}
-		}
+		layoutTitleButtons(titleButtons, btnAreaLeft, insets.top + topRegion+GAP,
+				buttonAreaWidth, BTN_HEIGHT, GAP);
+		logTitleButtonBounds("play", btnPlay);
+		logTitleButtonBounds("multiplayer", btnMultiplayer);
 
 		version = new BitmapText( "v" + Game.version, pixelFont);
 		version.measure();
@@ -344,7 +353,8 @@ public class TitleScene extends PixelScene {
 		}
 
 		Badges.loadGlobal();
-		if (Badges.isUnlocked(Badges.Badge.VICTORY) && !SPDSettings.victoryNagged()) {
+		if (Badges.isUnlocked(Badges.Badge.VICTORY) && !SPDSettings.victoryNagged()
+				&& !WebMultiplayer.suppressSupportPrompts()) {
 			SPDSettings.victoryNagged(true);
 			add(new WndVictoryCongrats());
 		}
@@ -363,6 +373,7 @@ public class TitleScene extends PixelScene {
 		//signs.am = alpha; handles this itself
 
 		btnPlay.enable(alpha != 0);
+		if (btnMultiplayer != null) btnMultiplayer.enable(alpha != 0);
 		btnSupport.enable(alpha != 0);
 		btnRankings.enable(alpha != 0);
 		btnJournal.enable(alpha != 0);
@@ -374,6 +385,7 @@ public class TitleScene extends PixelScene {
 		if (btnImportData != null) btnImportData.enable(alpha != 0 && !browserDataBackupBusy);
 
 		btnPlay.alpha(alpha);
+		if (btnMultiplayer != null) btnMultiplayer.alpha(alpha);
 		btnSupport.alpha(alpha);
 		btnRankings.alpha(alpha);
 		btnJournal.alpha(alpha);
@@ -391,6 +403,105 @@ public class TitleScene extends PixelScene {
 			btnExit.icon().alpha(alpha);
 		}
 
+	}
+
+	private int titleButtonRowCount(int buttonCount) {
+		if (landscape()) {
+			return 1 + (int)Math.ceil(Math.max(0, buttonCount - 2) / 3f);
+		} else {
+			int fullRows = Math.min(buttonCount, btnMultiplayer == null ? 2 : 3);
+			return fullRows + (int)Math.ceil(Math.max(0, buttonCount - fullRows) / 2f);
+		}
+	}
+
+	private void layoutTitleButtons(ArrayList<StyledButton> buttons, float left, float top,
+			float width, int height, int gap) {
+		if (buttons.isEmpty()) {
+			return;
+		}
+		if (landscape()) {
+			int index = 0;
+			float y = top;
+			float halfWidth = (width/2)-1;
+			for (int column = 0; column < 2 && index < buttons.size(); column++, index++) {
+				StyledButton button = buttons.get(index);
+				button.setRect(left + column * (halfWidth + 2), y, halfWidth, height);
+				align(button);
+			}
+			y += height + gap;
+			float thirdWidth = (float)(Math.floor(width/3f)-1);
+			while (index < buttons.size()) {
+				for (int column = 0; column < 3 && index < buttons.size(); column++, index++) {
+					StyledButton button = buttons.get(index);
+					button.setRect(left + column * (thirdWidth + 2), y, thirdWidth, height);
+					align(button);
+				}
+				y += height + gap;
+			}
+		} else {
+			int index = 0;
+			float y = top;
+			int fullRows = Math.min(buttons.size(), btnMultiplayer == null ? 2 : 3);
+			for (; index < fullRows; index++) {
+				StyledButton button = buttons.get(index);
+				button.setRect(left, y, width, height);
+				align(button);
+				y += height + gap;
+			}
+			float halfWidth = (width/2)-1;
+			while (index < buttons.size()) {
+				for (int column = 0; column < 2 && index < buttons.size(); column++, index++) {
+					StyledButton button = buttons.get(index);
+					button.setRect(left + column * (halfWidth + 2), y, halfWidth, height);
+					align(button);
+				}
+				y += height + gap;
+			}
+		}
+	}
+
+	private void showMultiplayerMenu() {
+		if (!multiplayerRoomEntryAvailable(Game.platform)) {
+			ShatteredPixelDungeon.scene().addToFront(
+					new WndMessage(Messages.get(TitleScene.class, "multiplayer_unavailable")));
+			return;
+		}
+		webParityLog("title multiplayer menu opened");
+		ShatteredPixelDungeon.scene().addToFront(new WndOptions(
+				Messages.get(TitleScene.class, "multiplayer_menu_title"),
+				Messages.get(TitleScene.class, "multiplayer_menu_body"),
+				Messages.get(TitleScene.class, "multiplayer_create"),
+				Messages.get(TitleScene.class, "multiplayer_join")
+		) {
+			@Override
+			protected void onSelect(int index) {
+				WndMultiplayerRoom.Mode mode = multiplayerRoomModeForMenuIndex(index);
+				webParityLog("title multiplayer menu selected index=" + index
+						+ " mode=" + (mode == null ? "" : mode.name()));
+				if (mode != null) {
+					ShatteredPixelDungeon.scene().addToFront(new WndMultiplayerRoom(mode));
+				}
+			}
+		});
+	}
+
+	static boolean multiplayerRoomEntryAvailable(PlatformSupport platform) {
+		return shouldShowMultiplayerEntry(platform != null,
+				platform != null && platform.multiplayerRoomEntryAvailable());
+	}
+
+	static boolean shouldShowMultiplayerEntry(boolean platformAvailable, boolean roomEntryAvailable) {
+		return platformAvailable && roomEntryAvailable;
+	}
+
+	static WndMultiplayerRoom.Mode multiplayerRoomModeForMenuIndex(int index) {
+		if (index == 0) {
+			return WndMultiplayerRoom.Mode.CREATE;
+		}
+		if (index == 1) {
+			return WndMultiplayerRoom.Mode.JOIN;
+		}
+		return null;
 	}
 
 	private void exportBrowserDataBackup() {
@@ -600,6 +711,9 @@ public class TitleScene extends PixelScene {
 
 		@Override
 		protected void onClick() {
+			if (WebMultiplayer.suppressSupportPrompts()) {
+				return;
+			}
 			ShatteredPixelDungeon.switchNoFade(SupporterScene.class);
 		}
 	}
@@ -607,6 +721,17 @@ public class TitleScene extends PixelScene {
 	private static void webParityLog(String message) {
 		if (DeviceCompat.webParityLoggingEnabled()) {
 			LOG.info("[WEB-PARITY] " + message);
+		}
+	}
+
+	private static void logTitleButtonBounds(String name, StyledButton button) {
+		if (DeviceCompat.webParityLoggingEnabled() && button != null) {
+			webParityLog("title " + name + " button bounds x=" + button.left()
+					+ " y=" + button.top()
+					+ " width=" + button.width()
+					+ " height=" + button.height()
+					+ " centerX=" + button.centerX()
+					+ " centerY=" + button.centerY());
 		}
 	}
 }

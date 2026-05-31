@@ -27,6 +27,7 @@ import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.ItemSprite;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.ItemSpriteSheet;
 import com.shatteredpixel.shatteredpixeldungeon.ui.Icons;
+import com.watabou.noosa.Game;
 import com.watabou.noosa.Image;
 import com.watabou.utils.Bundle;
 import com.watabou.utils.DeviceCompat;
@@ -64,6 +65,9 @@ public enum Document {
 	private LinkedHashMap<String, Integer> pagesStates = new LinkedHashMap<>();
 	
 	public boolean findPage( String page ) {
+		if (multiplayerJournalAvailable()) {
+			return false;
+		}
 		if (pagesStates.containsKey(page) && pagesStates.get(page) == NOT_FOUND){
 			pagesStates.put(page, FOUND);
 			Journal.saveNeeded = true;
@@ -74,10 +78,16 @@ public enum Document {
 	}
 
 	public boolean findPage( int pageIdx ) {
+		if (multiplayerJournalAvailable()) {
+			return false;
+		}
 		return findPage( pagesStates.keySet().toArray(new String[0])[pageIdx] );
 	}
 
 	public boolean deletePage( String page ){
+		if (multiplayerJournalAvailable()) {
+			return false;
+		}
 		if (pagesStates.containsKey(page) && pagesStates.get(page) != NOT_FOUND){
 			pagesStates.put(page, NOT_FOUND);
 			Journal.saveNeeded = true;
@@ -87,10 +97,16 @@ public enum Document {
 	}
 
 	public boolean deletePage( int pageIdx ) {
+		if (multiplayerJournalAvailable()) {
+			return false;
+		}
 		return deletePage( pagesStates.keySet().toArray(new String[0])[pageIdx] );
 	}
 
 	public boolean unreadPage( String page ){
+		if (multiplayerJournalAvailable()) {
+			return false;
+		}
 		if (pagesStates.containsKey(page) && pagesStates.get(page) == READ){
 			pagesStates.put(page, FOUND);
 			Journal.saveNeeded = true;
@@ -100,10 +116,17 @@ public enum Document {
 	}
 
 	public boolean unreadPage( int pageIdx ) {
+		if (multiplayerJournalAvailable()) {
+			return false;
+		}
 		return deletePage( pagesStates.keySet().toArray(new String[0])[pageIdx] );
 	}
 
 	public boolean isPageFound( String page ){
+		return isPageFoundInProgress(page) || (pagesStates.containsKey(page) && multiplayerJournalAvailable());
+	}
+
+	public boolean isPageFoundInProgress( String page ){
 		return pagesStates.containsKey(page) && pagesStates.get(page) > NOT_FOUND;
 	}
 
@@ -112,6 +135,9 @@ public enum Document {
 	}
 
 	public boolean anyPagesFound(){
+		if (multiplayerJournalAvailable()) {
+			return !pagesStates.isEmpty();
+		}
 		for( Integer val : pagesStates.values()){
 			if (val != NOT_FOUND){
 				return true;
@@ -121,6 +147,9 @@ public enum Document {
 	}
 
 	public boolean allPagesFound(){
+		if (multiplayerJournalAvailable()) {
+			return true;
+		}
 		for( Integer val : pagesStates.values()){
 			if (val == NOT_FOUND){
 				return false;
@@ -130,6 +159,9 @@ public enum Document {
 	}
 
 	public boolean readPage( String page ) {
+		if (multiplayerJournalAvailable()) {
+			return false;
+		}
 		if (pagesStates.containsKey(page)){
 			pagesStates.put(page, READ);
 			Journal.saveNeeded = true;
@@ -140,15 +172,22 @@ public enum Document {
 	}
 
 	public boolean readPage( int pageIdx ) {
+		if (multiplayerJournalAvailable()) {
+			return false;
+		}
 		return readPage( pagesStates.keySet().toArray(new String[0])[pageIdx] );
 	}
 
 	public boolean isPageRead( String page ){
-		return pagesStates.containsKey(page) && pagesStates.get(page) == READ;
+		return pagesStates.containsKey(page) && (multiplayerJournalAvailable() || pagesStates.get(page) == READ);
 	}
 
 	public boolean isPageRead( int pageIdx ){
 		return isPageRead( pagesStates.keySet().toArray(new String[0])[pageIdx] );
+	}
+
+	private static boolean multiplayerJournalAvailable() {
+		return Game.platform != null && Game.platform.multiplayerEnabled();
 	}
 
 	public Collection<String> pageNames(){
