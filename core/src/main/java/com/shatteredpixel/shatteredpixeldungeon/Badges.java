@@ -1193,6 +1193,7 @@ public class Badges {
 	}
 	
 	public static boolean isUnlocked( Badge badge ) {
+		loadGlobal();
 		return global.contains( badge );
 	}
 	
