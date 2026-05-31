@@ -197,10 +197,7 @@ public class WebMultiplayer {
 	}
 
 	public static boolean canContinueToWatch() {
-		return !roomWinnerKnown() && !roomNoWinnerKnown()
-				&& (multiplayerGameOverMenu() || localEliminated)
-				&& liveCompetitivePlayerCount() > 1
-				&& !firstLivePeerId().isEmpty();
+		return false;
 	}
 
 	public static boolean continueToWatch() {
@@ -223,9 +220,6 @@ public class WebMultiplayer {
 			return false;
 		}
 		announceLocalEliminated("game-over");
-		if (Game.platform != null) {
-			Game.platform.markMultiplayerWatchReturnEligible("game-over");
-		}
 		return true;
 	}
 
@@ -235,7 +229,6 @@ public class WebMultiplayer {
 		}
 		announceLocalEliminated("left");
 		if (Game.platform != null) {
-			Game.platform.markMultiplayerWatchReturnEligible("left");
 			Game.platform.disconnectActiveMultiplayerGame();
 		}
 		endTransientRoomRun();
@@ -347,6 +340,20 @@ public class WebMultiplayer {
 
 	public static void publishReplayEvent(String kind, String message) {
 		publishReplayEvent(kind, Dungeon.hero == null ? 0 : Dungeon.hero.pos, message);
+	}
+
+	public static void saveActiveRunSnapshot(int save) {
+		if (!active() || watcher() || Game.platform == null || Dungeon.hero == null) {
+			return;
+		}
+		String snapshotFilesJson = "";
+		if (GamesInProgress.isTransientMultiplayerSlot(save)) {
+			snapshotFilesJson = Dungeon.transientRunSnapshotFilesJson(save);
+			if (snapshotFilesJson == null || snapshotFilesJson.isEmpty()) {
+				return;
+			}
+		}
+		Game.platform.saveActiveMultiplayerRunSnapshot(save, snapshotFilesJson);
 	}
 
 	static void publishPeerBuffStatusIfChanged() {

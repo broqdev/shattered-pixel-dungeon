@@ -205,6 +205,11 @@ public class WebPlatformSupport extends PlatformSupport {
 	}
 
 	@Override
+	public void saveActiveMultiplayerRunSnapshot(int sourceSlot, String snapshotFilesJson) {
+		saveActiveMultiplayerRunSnapshotNative(sourceSlot, snapshotFilesJson);
+	}
+
+	@Override
 	public void switchMultiplayerWatchTarget(String targetId) {
 		switchMultiplayerWatchTargetNative(targetId);
 	}
@@ -360,6 +365,12 @@ public class WebPlatformSupport extends PlatformSupport {
 			+ "}")
 	private static native void sendMultiplayerWatcherKeyframeNative(String watcherId, String requestId,
 			String snapshotFilesJson);
+
+	@JSBody(params = { "sourceSlot", "snapshotFilesJson" }, script = "return typeof window !== 'undefined'"
+			+ " && !!window.__shpdMultiplayer"
+			+ " && typeof window.__shpdMultiplayer.saveActiveRunSnapshot === 'function'"
+			+ " ? window.__shpdMultiplayer.saveActiveRunSnapshot(sourceSlot, snapshotFilesJson) === true : false;")
+	private static native boolean saveActiveMultiplayerRunSnapshotNative(int sourceSlot, String snapshotFilesJson);
 
 	@JSBody(params = { "targetId" }, script = "if (typeof window !== 'undefined'"
 			+ " && !!window.__shpdMultiplayer"

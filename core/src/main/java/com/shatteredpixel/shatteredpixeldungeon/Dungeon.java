@@ -939,6 +939,7 @@ public class Dungeon {
 				steps.setGameInProgress( save );
 			}
 			webParityLog("saveAll complete " + saveSnapshot(save, reason));
+			WebMultiplayer.saveActiveRunSnapshot(save);
 		} catch (IOException e) {
 			webParityLog("saveAll failed " + saveSnapshot(save, reason) + " error=" + e.getClass().getName());
 			throw e;

@@ -172,6 +172,10 @@ public abstract class PlatformSupport {
 		sendMultiplayerWatcherKeyframe(watcherId, requestId);
 	}
 
+	public void saveActiveMultiplayerRunSnapshot(int sourceSlot, String snapshotFilesJson){
+		// Web-only by default.
+	}
+
 	public void switchMultiplayerWatchTarget(String targetId){
 		// Web-only by default.
 	}
