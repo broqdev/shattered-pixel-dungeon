@@ -47,7 +47,7 @@ public class WebIndexTemplateTest {
 		assertTrue(html.contains("MULTIPLAYER_TRYSTERO_MODULE"));
 		assertTrue(html.contains("trystero@0.21.8/torrent/+esm"));
 		assertTrue(html.contains("MULTIPLAYER_TRYSTERO_CONFIG"));
-		assertTrue(html.contains("relayRedundancy: 1"));
+		assertTrue(html.contains("relayRedundancy: 3"));
 		assertTrue(html.contains("let multiplayerTrysteroModulePromise = null;"));
 		assertTrue(html.contains("function loadMultiplayerTrysteroModule()"));
 		assertTrue(html.contains("multiplayerTrysteroModulePromise = import(MULTIPLAYER_TRYSTERO_MODULE).catch((error) => {"));
