@@ -56,7 +56,10 @@ public class TitleSceneMultiplayerEntryTest {
 				TitleScene.multiplayerRoomActionForMenuIndex(1, true));
 		assertEquals(TitleScene.MultiplayerRoomMenuAction.JOIN,
 				TitleScene.multiplayerRoomActionForMenuIndex(2, true));
-		assertNull(TitleScene.multiplayerRoomActionForMenuIndex(2, false));
-		assertNull(TitleScene.multiplayerRoomActionForMenuIndex(3, true));
+		assertEquals(TitleScene.MultiplayerRoomMenuAction.BACK,
+				TitleScene.multiplayerRoomActionForMenuIndex(3, true));
+		assertEquals(TitleScene.MultiplayerRoomMenuAction.BACK,
+				TitleScene.multiplayerRoomActionForMenuIndex(2, false));
+		assertNull(TitleScene.multiplayerRoomActionForMenuIndex(4, true));
 	}
 }

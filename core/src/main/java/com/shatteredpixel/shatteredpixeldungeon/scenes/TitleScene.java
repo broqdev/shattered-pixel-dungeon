@@ -97,7 +97,8 @@ public class TitleScene extends PixelScene {
 	enum MultiplayerRoomMenuAction {
 		CREATE,
 		JOIN,
-		REJOIN
+		REJOIN,
+		BACK
 	}
 
 	@Override
@@ -509,6 +510,9 @@ public class TitleScene extends PixelScene {
 			if (index == 2) {
 				return MultiplayerRoomMenuAction.JOIN;
 			}
+			if (index == 3) {
+				return MultiplayerRoomMenuAction.BACK;
+			}
 			return null;
 		}
 		if (index == 0) {
@@ -516,6 +520,9 @@ public class TitleScene extends PixelScene {
 		}
 		if (index == 1) {
 			return MultiplayerRoomMenuAction.JOIN;
+		}
+		if (index == 2) {
+			return MultiplayerRoomMenuAction.BACK;
 		}
 		return null;
 	}
@@ -525,12 +532,14 @@ public class TitleScene extends PixelScene {
 			return new String[]{
 					Messages.get(TitleScene.class, "multiplayer_rejoin"),
 					Messages.get(TitleScene.class, "multiplayer_create"),
-					Messages.get(TitleScene.class, "multiplayer_join")
+					Messages.get(TitleScene.class, "multiplayer_join"),
+					Messages.get(WndMultiplayerRoom.class, "back")
 			};
 		}
 		return new String[]{
 				Messages.get(TitleScene.class, "multiplayer_create"),
-				Messages.get(TitleScene.class, "multiplayer_join")
+				Messages.get(TitleScene.class, "multiplayer_join"),
+				Messages.get(WndMultiplayerRoom.class, "back")
 		};
 	}
 
@@ -739,6 +748,10 @@ public class TitleScene extends PixelScene {
 			} else if (action == MultiplayerRoomMenuAction.REJOIN) {
 				rejoin();
 			}
+		}
+
+		@Override
+		public void onBackPressed() {
 		}
 
 		private void rejoin() {

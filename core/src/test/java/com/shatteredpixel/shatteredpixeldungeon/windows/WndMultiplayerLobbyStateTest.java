@@ -135,6 +135,7 @@ public class WndMultiplayerLobbyStateTest {
 		assertEquals("reject_stale_room", WndMultiplayerLobby.statusMessageKey("stale room state"));
 		assertEquals("reject_seats_full", WndMultiplayerLobby.statusMessageKey("player seats full"));
 		assertEquals("reject_invalid_hero", WndMultiplayerLobby.statusMessageKey("invalid hero"));
+		assertEquals("reject_player_joined", WndMultiplayerLobby.statusMessageKey("player already joined"));
 		assertEquals("reject_rejoin_available", WndMultiplayerLobby.statusMessageKey("room rejoin available"));
 		assertEquals("custom bridge note", WndMultiplayerLobby.statusMessage("custom bridge note"));
 		assertEquals("", WndMultiplayerLobby.statusMessage(null));

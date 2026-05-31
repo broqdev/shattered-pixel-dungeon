@@ -120,7 +120,9 @@ public class WndMultiplayerRoom extends Window {
 		backButton = new RedButton(Messages.get(this, "back")){
 			@Override
 			protected void onClick() {
-				hide();
+				if (!pending) {
+					hide();
+				}
 			}
 		};
 		submitButton = new RedButton(Messages.get(this, mode.actionKey)){
@@ -282,6 +284,7 @@ public class WndMultiplayerRoom extends Window {
 			return;
 		}
 		pending = true;
+		backButton.enable(false);
 		submitButton.enable(false);
 		setStatus(Messages.get(this, mode.pendingKey));
 	}
@@ -386,6 +389,9 @@ public class WndMultiplayerRoom extends Window {
 			setStatus(WndMultiplayerLobby.statusMessage(parts[1]));
 		} else if ("room-error".equals(parts[0]) && parts.length >= 2) {
 			pending = false;
+			if (backButton != null) {
+				backButton.enable(true);
+			}
 			if (submitButton != null) {
 				submitButton.enable(true);
 			}
@@ -401,6 +407,7 @@ public class WndMultiplayerRoom extends Window {
 			WebMultiplayer.RoomLaunch launch = WebMultiplayer.RoomLaunch.fromEvent(parts);
 			if (!launch.valid) {
 				pending = false;
+				backButton.enable(true);
 				submitButton.enable(true);
 				setError(Messages.get(WndMultiplayerLobby.class, "launch_invalid"));
 			} else if (WebMultiplayer.launchRoomRun(launch)) {
@@ -409,10 +416,15 @@ public class WndMultiplayerRoom extends Window {
 				setStatus(Messages.get(WndMultiplayerLobby.class, "launch_waiting"));
 			} else {
 				pending = false;
+				backButton.enable(true);
 				submitButton.enable(true);
 				setError(Messages.get(WndMultiplayerLobby.class, "launch_unavailable"));
 			}
 		}
+	}
+
+	@Override
+	public void onBackPressed() {
 	}
 
 	private int parseInt(String value) {

@@ -90,6 +90,7 @@ public class WebIndexTemplateTest {
 		assertTrue(html.contains("function applyStartToggle(runtime)"));
 		assertTrue(html.contains("function requestMultiplayerRoomLeave()"));
 		assertTrue(html.contains("function deterministicOwnerTransferId(snapshot, previousOwnerId)"));
+		assertTrue(html.contains("function snapshotContainsPlayerName(snapshot, playerName, exceptParticipantId)"));
 		assertTrue(html.contains("function applyParticipantLeave(runtime, participantId, pushLocalEvent)"));
 		assertTrue(html.contains("MULTIPLAYER_ROOM_RECONNECT_GRACE_MS"));
 		assertTrue(html.contains("const MULTIPLAYER_ROOM_CREATE_PROBE_MS = 3000;"));
@@ -1234,6 +1235,7 @@ public class WebIndexTemplateTest {
 		assertTrue(roomEntryTransport.contains("sendRoomHandshakeRequests(runtime);"));
 		assertTrue(joinRequestHandler.contains("sendCurrentRoomSnapshot(runtime, peerId);"));
 		assertTrue(joinRequestHandler.contains("sendCurrentRoomSnapshot(runtime);"));
+		assertTrue(joinRequestHandler.contains("rejectRoomJoin(runtime, \"player already joined\""));
 	}
 
 	@Test

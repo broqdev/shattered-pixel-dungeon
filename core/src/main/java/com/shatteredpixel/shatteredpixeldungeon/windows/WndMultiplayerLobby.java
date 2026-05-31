@@ -439,6 +439,8 @@ public class WndMultiplayerLobby extends Window {
 				return "reject_room_full";
 			case "game already started":
 				return "reject_game_started";
+			case "player already joined":
+				return "reject_player_joined";
 			case "room rejoin available":
 				return "reject_rejoin_available";
 			default:
@@ -514,6 +516,10 @@ public class WndMultiplayerLobby extends Window {
 	static boolean shouldContinuePollingAfterRoomEvent(String eventType, boolean launchStarted) {
 		return !"room-lobby".equals(eventType)
 				&& (!"room-launch".equals(eventType) || !launchStarted);
+	}
+
+	@Override
+	public void onBackPressed() {
 	}
 
 	@Override

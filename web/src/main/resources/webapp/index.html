@@ -2654,6 +2654,17 @@
                     participant && participant.participantId === participantId) || null;
             }
 
+            function snapshotContainsPlayerName(snapshot, playerName, exceptParticipantId) {
+                const name = String(playerName || "").trim();
+                if (!snapshot || !Array.isArray(snapshot.participants) || !name) {
+                    return false;
+                }
+                return snapshot.participants.some((participant) =>
+                    participant
+                            && participant.participantId !== exceptParticipantId
+                            && String(participant.playerName || "").trim() === name);
+            }
+
             function participantDisplayColor(participant, fallback) {
                 if (participant && participant.participantColor) {
                     return participant.participantColor;
@@ -2788,6 +2799,9 @@
                 delete participant.reconnectTokenProof;
                 if (snapshot.participants.some((existing) => existing.participantId === participant.participantId)) {
                     return true;
+                }
+                if (snapshotContainsPlayerName(snapshot, participant.playerName, participant.participantId)) {
+                    return false;
                 }
                 const seat = firstOpenSeat(snapshot);
                 if (seat < 0 || snapshot.participants.length >= MULTIPLAYER_ROOM_MAX_CONNECTIONS) {
@@ -3889,6 +3903,11 @@
                             || participant.participantId !== payload.senderParticipantId) {
                         rejectRoomJoin(runtime, "invalid participant identity", peerId, requestId,
                                 targetParticipantId);
+                        return;
+                    }
+                    if (snapshotContainsPlayerName(session.snapshot, participant.playerName,
+                            participant.participantId)) {
+                        rejectRoomJoin(runtime, "player already joined", peerId, requestId, targetParticipantId);
                         return;
                     }
                     if (!addParticipantToRoomSnapshot(session.snapshot, participant)) {
