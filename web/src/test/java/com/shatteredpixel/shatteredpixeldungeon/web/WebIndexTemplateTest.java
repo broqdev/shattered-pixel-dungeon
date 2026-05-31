@@ -46,8 +46,13 @@ public class WebIndexTemplateTest {
 		assertTrue(html.contains("function installDirectStartHowlerPolicy()"));
 		assertTrue(html.contains("MULTIPLAYER_TRYSTERO_MODULE"));
 		assertTrue(html.contains("trystero@0.21.8/torrent/+esm"));
+		assertTrue(html.contains("MULTIPLAYER_TRYSTERO_RELAY_URLS"));
+		assertTrue(html.contains("\"wss://tracker.openwebtorrent.com\""));
+		assertTrue(html.contains("\"wss://tracker.btorrent.xyz\""));
+		assertFalse(html.contains("\"wss://tracker.webtorrent.dev\""));
+		assertFalse(html.contains("\"wss://tracker.files.fm:7073/announce\""));
 		assertTrue(html.contains("MULTIPLAYER_TRYSTERO_CONFIG"));
-		assertTrue(html.contains("relayRedundancy: 3"));
+		assertTrue(html.contains("relayUrls: MULTIPLAYER_TRYSTERO_RELAY_URLS"));
 		assertTrue(html.contains("let multiplayerTrysteroModulePromise = null;"));
 		assertTrue(html.contains("function loadMultiplayerTrysteroModule()"));
 		assertTrue(html.contains("multiplayerTrysteroModulePromise = import(MULTIPLAYER_TRYSTERO_MODULE).catch((error) => {"));

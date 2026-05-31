@@ -1107,9 +1107,13 @@
 
             const MULTIPLAYER_TRYSTERO_MODULE = "https://cdn.jsdelivr.net/npm/trystero@0.21.8/torrent/+esm";
             const MULTIPLAYER_APP_ID = "shattered-pixel-dungeon-web";
+            const MULTIPLAYER_TRYSTERO_RELAY_URLS = [
+                "wss://tracker.openwebtorrent.com",
+                "wss://tracker.btorrent.xyz"
+            ];
             const MULTIPLAYER_TRYSTERO_CONFIG = {
                 appId: MULTIPLAYER_APP_ID,
-                relayRedundancy: 3
+                relayUrls: MULTIPLAYER_TRYSTERO_RELAY_URLS
             };
             let multiplayerTrysteroModulePromise = null;
 
