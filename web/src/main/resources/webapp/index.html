@@ -1140,9 +1140,9 @@
             ];
             const MULTIPLAYER_ROOM_DEV_URL_ACTION_RETRY_MS = 100;
             const MULTIPLAYER_ROOM_DEV_URL_ACTION_TIMEOUT_MS = 15000;
-            const MULTIPLAYER_ROOM_CREATE_PROBE_MS = 5000;
+            const MULTIPLAYER_ROOM_CREATE_PROBE_MS = 3000;
             const MULTIPLAYER_ROOM_JOIN_TIMEOUT_MS = 45000;
-            const MULTIPLAYER_ROOM_HANDSHAKE_RETRY_MS = 1000;
+            const MULTIPLAYER_ROOM_HANDSHAKE_RETRY_MS = 300;
             const MULTIPLAYER_ROOM_RECONNECT_GRACE_MS = 30000;
             const MULTIPLAYER_WATCHER_KEYFRAME_RETRY_MS = 1500;
             const MULTIPLAYER_ROOM_COLORS = [
@@ -2172,6 +2172,51 @@
                         && snapshotContainsParticipant(session.snapshot, session.participantId);
             }
 
+            function storedRoomSessionOwnerOnlyReconnectCandidate(session) {
+                const snapshot = session && session.snapshot;
+                const participants = snapshot && Array.isArray(snapshot.participants)
+                        ? snapshot.participants.filter((participant) => !!participant)
+                        : [];
+                const participant = participantForId(snapshot, session && session.participantId);
+                return storedRoomSessionReconnectCandidate(session,
+                        session && session.normalizedRoomName,
+                        session && session.roomSecret,
+                        session && session.playerName)
+                        && !!participant
+                        && participants.length === 1
+                        && session.roomOwnerParticipantId === session.participantId
+                        && snapshot.roomOwnerParticipantId === session.participantId;
+            }
+
+            function restoreOwnerOnlyRoomReconnectSession(session) {
+                const snapshot = session && session.snapshot;
+                const participant = participantForId(snapshot, session && session.participantId);
+                if (!snapshot || !participant) {
+                    return session;
+                }
+                session.mode = "rejoin";
+                session.phase = "lobby";
+                session.reconnectRequestId = "";
+                session.reconnectDeadlineMs = 0;
+                session.reconnectDeadlineReason = "";
+                session.roomOwnerParticipantId = session.participantId;
+                session.roomEpoch = Number(snapshot.roomEpoch) || Number(session.roomEpoch) || 1;
+                snapshot.roomPhase = "lobby";
+                snapshot.roomOwnerParticipantId = session.participantId;
+                snapshot.roomEpoch = session.roomEpoch;
+                snapshot.countdown = null;
+                clearReadyAndCountdown(snapshot);
+                participant.connected = true;
+                participant.owner = true;
+                participant.reconnectDeadlineMs = 0;
+                participant.reconnectDeadlineReason = "";
+                if (snapshot.capacity) {
+                    snapshot.capacity.activeConnections = 1;
+                }
+                acceptStoredRoomIdentityEntry(session);
+                return session;
+            }
+
             function loadStoredRoomSessionForReconnect(normalizedRoomName, roomSecret, playerName) {
                 const storage = multiplayerSessionStorage();
                 if (!storage) {
@@ -2446,6 +2491,12 @@
                 }
                 const session = candidate.session;
                 if (candidate.kind === "reconnect") {
+                    if (storedRoomSessionOwnerOnlyReconnectCandidate(session)) {
+                        restoreOwnerOnlyRoomReconnectSession(session);
+                        await ensureMultiplayerRoomSessionAuthKeys(session);
+                        saveMultiplayerRoomSession(session);
+                        return session;
+                    }
                     session.mode = "rejoin";
                     session.phase = "reconnect-handshake";
                     session.reconnectRequestId = "rr-" + multiplayerRandomBase64Url(12);
@@ -4005,6 +4056,14 @@
                                 pushMultiplayerRoomEvent("room-error", ["Owner did not respond."]);
                             }
                         }, MULTIPLAYER_ROOM_JOIN_TIMEOUT_MS);
+                    } else if (session.phase === "lobby"
+                            && session.roomOwnerParticipantId === session.participantId
+                            && session.snapshot) {
+                        acceptStoredRoomIdentityEntry(session);
+                        saveMultiplayerRoomSession(session);
+                        pushMultiplayerRoomEvent("room-status", ["Room reconnected."]);
+                        pushRoomLobbyEvent(session);
+                        sendCurrentRoomSnapshot(runtime);
                     } else {
                         sendRoomHandshakeRequests(runtime);
                         startRoomHandshakeRetry(runtime);

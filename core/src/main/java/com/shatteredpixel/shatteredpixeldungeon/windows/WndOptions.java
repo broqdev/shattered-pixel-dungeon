@@ -43,6 +43,9 @@ public class WndOptions extends Window {
 	protected static final int MARGIN 		= 2;
 	protected static final int BUTTON_HEIGHT	= 18;
 
+	protected final ArrayList<RedButton> optionButtons = new ArrayList<>();
+	protected RenderedTextBlock messageText;
+
 	public WndOptions(Image icon, String title, String message, String... options) {
 		super();
 
@@ -81,21 +84,23 @@ public class WndOptions extends Window {
 
 	protected void layoutBody(float pos, String message, String... options){
 		int width = PixelScene.landscape() ? WIDTH_L : WIDTH_P;
-		ArrayList<RedButton> optionButtons = new ArrayList<>();
+		optionButtons.clear();
 
-		RenderedTextBlock tfMesage = PixelScene.renderTextBlock( 6 );
-		tfMesage.text(message, width);
-		tfMesage.setPos( 0, pos );
-		add( tfMesage );
+		messageText = PixelScene.renderTextBlock( 6 );
+		messageText.text(message, width);
+		messageText.setPos( 0, pos );
+		add( messageText );
 
-		pos = tfMesage.bottom() + 2*MARGIN;
+		pos = messageText.bottom() + 2*MARGIN;
 
 		for (int i=0; i < options.length; i++) {
 			final int index = i;
 			RedButton btn = new RedButton( options[i] ) {
 				@Override
 				protected void onClick() {
-					hide();
+					if (hideOnSelect(index)) {
+						hide();
+					}
 					onSelect( index );
 				}
 			};
@@ -130,6 +135,10 @@ public class WndOptions extends Window {
 	}
 
 	protected boolean enabled( int index ){
+		return true;
+	}
+
+	protected boolean hideOnSelect( int index ){
 		return true;
 	}
 	

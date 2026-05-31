@@ -82,10 +82,15 @@ public class WebIndexTemplateTest {
 		assertTrue(html.contains("function deterministicOwnerTransferId(snapshot, previousOwnerId)"));
 		assertTrue(html.contains("function applyParticipantLeave(runtime, participantId, pushLocalEvent)"));
 		assertTrue(html.contains("MULTIPLAYER_ROOM_RECONNECT_GRACE_MS"));
+		assertTrue(html.contains("const MULTIPLAYER_ROOM_CREATE_PROBE_MS = 3000;"));
+		assertTrue(html.contains("const MULTIPLAYER_ROOM_JOIN_TIMEOUT_MS = 45000;"));
+		assertTrue(html.contains("const MULTIPLAYER_ROOM_HANDSHAKE_RETRY_MS = 300;"));
 		assertTrue(html.contains("function deriveMultiplayerReconnectTokenProof(roomSecret, participantId, reconnectToken)"));
 		assertTrue(html.contains("function loadStoredRoomSessionForReconnect(normalizedRoomName, roomSecret, playerName)"));
 		assertTrue(html.contains("function loadStoredRoomSessionForActivePlayerReturn(normalizedRoomName, roomSecret, playerName)"));
 		assertTrue(html.contains("function loadStoredRoomSessionForRejoinCandidate()"));
+		assertTrue(html.contains("function storedRoomSessionOwnerOnlyReconnectCandidate(session)"));
+		assertTrue(html.contains("function restoreOwnerOnlyRoomReconnectSession(session)"));
 		assertTrue(html.contains("function createBlockedByStoredRoomRejoinCandidate(normalizedRoomName)"));
 		assertTrue(html.contains("function roomReturnDeadlineExpired(deadlineMs)"));
 		assertTrue(html.contains("function storedRoomSessionReconnectDeadlineMs(session)"));
@@ -670,6 +675,12 @@ public class WebIndexTemplateTest {
 		String rejoinCreation = sectionBetween(html,
 				"async function createMultiplayerRoomRejoinSession()",
 				"async function createMultiplayerRoomSession(mode, input)");
+		String ownerOnlyCandidate = sectionBetween(html,
+				"function storedRoomSessionOwnerOnlyReconnectCandidate(session)",
+				"function restoreOwnerOnlyRoomReconnectSession(session)");
+		String ownerOnlyRestore = sectionBetween(html,
+				"function restoreOwnerOnlyRoomReconnectSession(session)",
+				"function loadStoredRoomSessionForReconnect(normalizedRoomName, roomSecret, playerName)");
 		String joinCreation = sectionBetween(html,
 				"async function createMultiplayerRoomSession(mode, input)",
 				"const participantId =");
@@ -685,15 +696,29 @@ public class WebIndexTemplateTest {
 		String reconnectReasons = sectionBetween(html,
 				"function reconnectRejectionMessage(reason)",
 				"function rejectRoomCreateConflict(runtime)");
+		String startTransport = sectionBetween(html,
+				"function startMultiplayerRoomTransport(session)",
+				"function startRequestedMultiplayerRoomSession(session, sessionSource)");
 
 		assertTrue(rejoinCreation.contains("const candidate = loadStoredRoomSessionForRejoinCandidate();"));
 		assertTrue(rejoinCreation.contains("candidate.kind === \"reconnect\""));
+		assertTrue(rejoinCreation.contains("storedRoomSessionOwnerOnlyReconnectCandidate(session)"));
+		assertTrue(rejoinCreation.contains("restoreOwnerOnlyRoomReconnectSession(session);"));
 		assertTrue(rejoinCreation.contains("session.mode = \"rejoin\";"));
 		assertTrue(rejoinCreation.contains("session.phase = \"reconnect-handshake\";"));
 		assertTrue(rejoinCreation.contains("session.reconnectRequestId = \"rr-\" + multiplayerRandomBase64Url(12);"));
 		assertTrue(rejoinCreation.contains("if (!session.reconnectToken)"));
 		assertTrue(rejoinCreation.contains("session.reconnectTokenProof = \"\";"));
 		assertTrue(rejoinCreation.contains("} else if (!session.reconnectTokenProof)"));
+		assertTrue(ownerOnlyCandidate.contains("participants.length === 1"));
+		assertTrue(ownerOnlyCandidate.contains("session.roomOwnerParticipantId === session.participantId"));
+		assertTrue(ownerOnlyCandidate.contains("snapshot.roomOwnerParticipantId === session.participantId"));
+		assertTrue(ownerOnlyRestore.contains("session.phase = \"lobby\";"));
+		assertTrue(ownerOnlyRestore.contains("session.roomOwnerParticipantId = session.participantId;"));
+		assertTrue(ownerOnlyRestore.contains("clearReadyAndCountdown(snapshot);"));
+		assertTrue(ownerOnlyRestore.contains("participant.connected = true;"));
+		assertTrue(ownerOnlyRestore.contains("participant.owner = true;"));
+		assertTrue(ownerOnlyRestore.contains("snapshot.capacity.activeConnections = 1;"));
 		assertFalse(joinCreation.contains("loadStoredRoomSessionForReconnect("));
 		assertFalse(joinCreation.contains("loadStoredRoomSessionForActivePlayerReturn("));
 		assertTrue(reconnectHandler.contains("session.roomOwnerParticipantId === session.participantId"));
@@ -718,6 +743,11 @@ public class WebIndexTemplateTest {
 		assertTrue(reconnectRejected.indexOf("window.__shpdMultiplayerRooms.currentSession = null;")
 				< reconnectRejected.indexOf("pushMultiplayerRoomEvent(\"room-error\""));
 		assertTrue(reconnectRejected.indexOf("if (retryFreshJoin)") < reconnectRejected.indexOf("pushMultiplayerRoomEvent(\"room-error\""));
+		assertTrue(startTransport.contains("session.phase === \"lobby\""));
+		assertTrue(startTransport.contains("session.roomOwnerParticipantId === session.participantId"));
+		assertTrue(startTransport.contains("pushMultiplayerRoomEvent(\"room-status\", [\"Room reconnected.\"]);"));
+		assertTrue(startTransport.contains("pushRoomLobbyEvent(session);"));
+		assertTrue(startTransport.contains("sendCurrentRoomSnapshot(runtime);"));
 	}
 
 	@Test
@@ -1154,7 +1184,7 @@ public class WebIndexTemplateTest {
 				"function startMultiplayerRoomTransport(session)",
 				"}).catch((error) => {");
 
-		assertTrue(html.contains("const MULTIPLAYER_ROOM_HANDSHAKE_RETRY_MS = 1000;"));
+		assertTrue(html.contains("const MULTIPLAYER_ROOM_HANDSHAKE_RETRY_MS = 300;"));
 		assertTrue(cleanup.contains("clearRoomHandshakeRetry(runtime);"));
 		assertTrue(retryHelpers.contains("window.clearInterval(runtime.handshakeRetryId);"));
 		assertTrue(retryHelpers.contains("session.phase === \"join-handshake\""));

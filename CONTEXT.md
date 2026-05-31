@@ -32,6 +32,10 @@ _Avoid_: rejoin, new join, replacement
 A Room Participant identity that can still attempt Room Reconnect before Leave cleanup completes.
 _Avoid_: old room, saved room, previous room
 
+**Room Entry Action**:
+A player-facing choice that begins room creation, room joining, or room reconnection.
+_Avoid_: submenu option, room form mode, transport request
+
 **Rejoin Room Action**:
 The player-facing choice to attempt Room Reconnect instead of starting a Room Join Request.
 _Avoid_: Join Room, new join, Create Room
@@ -263,7 +267,9 @@ _Avoid_: timeout, timer, race clock
 - A **Room Reconnect** requires the same **Room Participant** and **Reconnect Token**.
 - A **Room Reconnect** can preserve **Room Owner** status.
 - A **Room Reconnect Candidate** can become a **Room Reconnect**.
+- **Create Room**, **Room Join Request**, and **Rejoin Room Action** are distinct **Room Entry Actions**.
 - A **Rejoin Room Action** attempts one **Room Reconnect Candidate**.
+- A **Rejoin Room Action** for a **Room Owner** who is the only **Room Participant** can restore the lobby without another **Room Participant** accepting the **Room Reconnect**.
 - A **Room Reconnect Candidate** blocks Create Room for the same **Room Name**.
 - A **Rejoin Room Action** can attempt **Active Room Return** after a Competitive Run starts.
 - **Active Room Return** preserves the same **Room Participant** and **Transient Run State**.

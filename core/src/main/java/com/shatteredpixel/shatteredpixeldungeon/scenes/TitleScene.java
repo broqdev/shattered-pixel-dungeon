@@ -44,6 +44,7 @@ import com.shatteredpixel.shatteredpixeldungeon.ui.StyledButton;
 import com.shatteredpixel.shatteredpixeldungeon.ui.TitleBackground;
 import com.shatteredpixel.shatteredpixeldungeon.ui.Window;
 import com.shatteredpixel.shatteredpixeldungeon.windows.WndMessage;
+import com.shatteredpixel.shatteredpixeldungeon.windows.WndMultiplayerLobby;
 import com.shatteredpixel.shatteredpixeldungeon.windows.WndMultiplayerRoom;
 import com.shatteredpixel.shatteredpixeldungeon.windows.WndOptions;
 import com.shatteredpixel.shatteredpixeldungeon.windows.WndSettings;
@@ -92,6 +93,12 @@ public class TitleScene extends PixelScene {
 	private BitmapText version;
 	private IconButton btnFade;
 	private ExitButton btnExit;
+
+	enum MultiplayerRoomMenuAction {
+		CREATE,
+		JOIN,
+		REJOIN
+	}
 
 	@Override
 	public void create() {
@@ -467,22 +474,8 @@ public class TitleScene extends PixelScene {
 			return;
 		}
 		webParityLog("title multiplayer menu opened");
-		ShatteredPixelDungeon.scene().addToFront(new WndOptions(
-				Messages.get(TitleScene.class, "multiplayer_menu_title"),
-				Messages.get(TitleScene.class, "multiplayer_menu_body"),
-				Messages.get(TitleScene.class, "multiplayer_create"),
-				Messages.get(TitleScene.class, "multiplayer_join")
-		) {
-			@Override
-			protected void onSelect(int index) {
-				WndMultiplayerRoom.Mode mode = multiplayerRoomModeForMenuIndex(index);
-				webParityLog("title multiplayer menu selected index=" + index
-						+ " mode=" + (mode == null ? "" : mode.name()));
-				if (mode != null) {
-					ShatteredPixelDungeon.scene().addToFront(new WndMultiplayerRoom(mode));
-				}
-			}
-		});
+		boolean rejoinAvailable = Game.platform != null && Game.platform.multiplayerRoomRejoinAvailable();
+		ShatteredPixelDungeon.scene().addToFront(new WndMultiplayerMenu(Game.platform, rejoinAvailable));
 	}
 
 	static boolean multiplayerRoomEntryAvailable(PlatformSupport platform) {
@@ -495,13 +488,41 @@ public class TitleScene extends PixelScene {
 	}
 
 	static WndMultiplayerRoom.Mode multiplayerRoomModeForMenuIndex(int index) {
-		if (index == 0) {
+		MultiplayerRoomMenuAction action = multiplayerRoomActionForMenuIndex(index, false);
+		if (action == MultiplayerRoomMenuAction.CREATE) {
 			return WndMultiplayerRoom.Mode.CREATE;
 		}
-		if (index == 1) {
+		if (action == MultiplayerRoomMenuAction.JOIN) {
 			return WndMultiplayerRoom.Mode.JOIN;
 		}
 		return null;
+	}
+
+	static MultiplayerRoomMenuAction multiplayerRoomActionForMenuIndex(int index, boolean rejoinAvailable) {
+		if (index == 0) {
+			return MultiplayerRoomMenuAction.CREATE;
+		}
+		if (index == 1) {
+			return MultiplayerRoomMenuAction.JOIN;
+		}
+		if (rejoinAvailable && index == 2) {
+			return MultiplayerRoomMenuAction.REJOIN;
+		}
+		return null;
+	}
+
+	private static String[] multiplayerMenuOptions(boolean rejoinAvailable) {
+		if (rejoinAvailable) {
+			return new String[]{
+					Messages.get(TitleScene.class, "multiplayer_create"),
+					Messages.get(TitleScene.class, "multiplayer_join"),
+					Messages.get(TitleScene.class, "multiplayer_rejoin")
+			};
+		}
+		return new String[]{
+				Messages.get(TitleScene.class, "multiplayer_create"),
+				Messages.get(TitleScene.class, "multiplayer_join")
+		};
 	}
 
 	private void exportBrowserDataBackup() {
@@ -669,6 +690,152 @@ public class TitleScene extends PixelScene {
 			}
 		}
 
+	}
+
+	private static class WndMultiplayerMenu extends WndOptions {
+
+		private final PlatformSupport platform;
+		private final boolean rejoinAvailable;
+		private boolean pendingRejoin;
+		private boolean closed;
+
+		WndMultiplayerMenu(PlatformSupport platform, boolean rejoinAvailable) {
+			super(
+					Messages.get(TitleScene.class, "multiplayer_menu_title"),
+					Messages.get(TitleScene.class, "multiplayer_menu_body"),
+					multiplayerMenuOptions(rejoinAvailable));
+			this.platform = platform;
+			this.rejoinAvailable = rejoinAvailable;
+		}
+
+		@Override
+		protected boolean hideOnSelect(int index) {
+			return multiplayerRoomActionForMenuIndex(index, rejoinAvailable)
+					!= MultiplayerRoomMenuAction.REJOIN;
+		}
+
+		@Override
+		protected void onSelect(int index) {
+			if (pendingRejoin) {
+				return;
+			}
+			MultiplayerRoomMenuAction action = multiplayerRoomActionForMenuIndex(index, rejoinAvailable);
+			webParityLog("title multiplayer menu selected index=" + index
+					+ " action=" + (action == null ? "" : action.name()));
+			if (action == MultiplayerRoomMenuAction.CREATE || action == MultiplayerRoomMenuAction.JOIN) {
+				WndMultiplayerRoom.Mode mode = action == MultiplayerRoomMenuAction.CREATE
+						? WndMultiplayerRoom.Mode.CREATE
+						: WndMultiplayerRoom.Mode.JOIN;
+				ShatteredPixelDungeon.scene().addToFront(new WndMultiplayerRoom(mode));
+			} else if (action == MultiplayerRoomMenuAction.REJOIN) {
+				rejoin();
+			}
+		}
+
+		private void rejoin() {
+			webParityLog("title multiplayer menu rejoin submit");
+			if (platform == null || !platform.requestMultiplayerRoomRejoin()) {
+				hideRejoinOption();
+				setError(Messages.get(WndMultiplayerRoom.class, "rejoin_unavailable"));
+				return;
+			}
+			pendingRejoin = true;
+			setOptionsEnabled(false);
+			setStatus(Messages.get(WndMultiplayerRoom.class, "rejoining"));
+		}
+
+		private void setOptionsEnabled(boolean enabled) {
+			for (int i = 0; i < optionButtons.size(); i++) {
+				if (!isRejoinIndex(i) || optionButtons.get(i).visible) {
+					optionButtons.get(i).enable(enabled);
+				}
+			}
+		}
+
+		private boolean isRejoinIndex(int index) {
+			return rejoinAvailable && index == 2;
+		}
+
+		private void hideRejoinOption() {
+			if (isRejoinIndex(2) && optionButtons.size() > 2) {
+				optionButtons.get(2).visible = false;
+				optionButtons.get(2).active = false;
+				optionButtons.get(2).enable(false);
+			}
+		}
+
+		private void setStatus(String message) {
+			setMessage(message, Window.SHPX_COLOR);
+		}
+
+		private void setError(String message) {
+			setMessage(message, 0xFF8E75);
+		}
+
+		private void setMessage(String message, int color) {
+			if (messageText == null) {
+				return;
+			}
+			int width = PixelScene.landscape() ? WIDTH_L : WIDTH_P;
+			messageText.text(message, width);
+			messageText.setPos(0, messageText.top());
+			messageText.hardlight(color);
+		}
+
+		@Override
+		public void update() {
+			super.update();
+			if (!pendingRejoin || platform == null) {
+				return;
+			}
+			String event;
+			while (!closed && (event = platform.pollMultiplayerRoomEvent()) != null) {
+				handleRoomEvent(event);
+			}
+		}
+
+		private void handleRoomEvent(String event) {
+			String[] parts = event.split("\\|", -1);
+			if (parts.length == 0) {
+				return;
+			}
+			webParityLog("title multiplayer menu event " + parts[0]);
+			if ("room-status".equals(parts[0]) && parts.length >= 2) {
+				setStatus(WndMultiplayerLobby.statusMessage(parts[1]));
+			} else if ("room-error".equals(parts[0]) && parts.length >= 2) {
+				pendingRejoin = false;
+				setOptionsEnabled(true);
+				hideRejoinOption();
+				setError(WndMultiplayerLobby.statusMessage(parts[1]));
+			} else if ("room-lobby".equals(parts[0])) {
+				WndMultiplayerLobby lobby = new WndMultiplayerLobby(WndMultiplayerLobby.LobbyState.fromEvent(parts));
+				hide();
+				ShatteredPixelDungeon.scene().addToFront(lobby);
+			} else if ("room-launch".equals(parts[0])) {
+				WebMultiplayer.RoomLaunch launch = WebMultiplayer.RoomLaunch.fromEvent(parts);
+				if (!launch.valid) {
+					pendingRejoin = false;
+					setOptionsEnabled(true);
+					hideRejoinOption();
+					setError(Messages.get(WndMultiplayerLobby.class, "launch_invalid"));
+				} else if (WebMultiplayer.launchRoomRun(launch)) {
+					hide();
+				} else if (launch.watcher) {
+					setStatus(Messages.get(WndMultiplayerLobby.class, "launch_waiting"));
+				} else {
+					pendingRejoin = false;
+					setOptionsEnabled(true);
+					hideRejoinOption();
+					setError(Messages.get(WndMultiplayerLobby.class, "launch_unavailable"));
+				}
+			}
+		}
+
+		@Override
+		public void hide() {
+			closed = true;
+			super.hide();
+		}
 	}
 
 	private static class SettingsButton extends StyledButton {
