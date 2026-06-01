@@ -2,6 +2,8 @@ The repo migrates Shattered Pixel Dungeon to web with [TeaVM](https://github.com
 
 FYI it's achieved by running Codex with [TaskMarkDown skill](https://github.com/broqdev/noisy_room) .
 
+2025/05/31: add speedrun multiplay 
+
 ## Orginal README
 
 ---
