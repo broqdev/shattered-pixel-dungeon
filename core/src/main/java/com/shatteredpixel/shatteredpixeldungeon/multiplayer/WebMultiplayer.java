@@ -36,6 +36,7 @@ import com.shatteredpixel.shatteredpixeldungeon.utils.GLog;
 import com.shatteredpixel.shatteredpixeldungeon.windows.WndMultiplayerOutcome;
 import com.watabou.noosa.Game;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -67,6 +68,7 @@ public class WebMultiplayer {
 	private static boolean roomNoWinner;
 	private static boolean roomOutcomeOverlayShown;
 	private static boolean transientRoomRun;
+	private static boolean activeRunSnapshotDirty;
 
 	private static final HashSet<String> seenRemoteFloors = new HashSet<>();
 	private static final HashMap<String, PeerMirrorState> peerMirrors = new HashMap<>();
@@ -84,6 +86,7 @@ public class WebMultiplayer {
 		}
 		announceCurrentFloorIfNeeded();
 		publishPeerBuffStatusIfChanged();
+		flushActiveRunSnapshotIfDirty();
 	}
 
 	public static void onLocalFloorChanged() {
@@ -334,6 +337,9 @@ public class WebMultiplayer {
 
 		Game.platform.announceMultiplayerReplayEvent(kind, Dungeon.depth, Dungeon.branch, cell, message);
 		if (!"status".equals(kind)) {
+			activeRunSnapshotDirty = true;
+		}
+		if (!"status".equals(kind)) {
 			publishPeerBuffStatusIfChanged();
 		}
 	}
@@ -354,6 +360,19 @@ public class WebMultiplayer {
 			}
 		}
 		Game.platform.saveActiveMultiplayerRunSnapshot(save, snapshotFilesJson);
+	}
+
+	private static void flushActiveRunSnapshotIfDirty() {
+		if (!activeRunSnapshotDirty || !active() || watcher() || Dungeon.hero == null || !Dungeon.hero.ready) {
+			return;
+		}
+		activeRunSnapshotDirty = false;
+		try {
+			Dungeon.saveAll("multiplayerReplay");
+		} catch (IOException e) {
+			activeRunSnapshotDirty = true;
+			ShatteredPixelDungeon.reportException(e);
+		}
 	}
 
 	static void publishPeerBuffStatusIfChanged() {
@@ -1201,6 +1220,7 @@ public class WebMultiplayer {
 		roomWinner = null;
 		roomNoWinner = false;
 		roomOutcomeOverlayShown = false;
+		activeRunSnapshotDirty = false;
 		seenRemoteFloors.clear();
 		peerMirrors.clear();
 	}

@@ -45,10 +45,21 @@ public class WebIndexTemplateTest {
 		assertTrue(html.contains("offsetTop: {"));
 		assertTrue(html.contains("function installDirectStartHowlerPolicy()"));
 		assertTrue(html.contains("MULTIPLAYER_TRYSTERO_MODULE"));
-		assertTrue(html.contains("trystero@0.21.8/torrent/+esm"));
+		assertTrue(html.contains("trystero@0.21.8/nostr/+esm"));
 		assertTrue(html.contains("MULTIPLAYER_TRYSTERO_RELAY_URLS"));
-		assertTrue(html.contains("\"wss://tracker.openwebtorrent.com\""));
-		assertTrue(html.contains("\"wss://tracker.btorrent.xyz\""));
+		assertTrue(html.contains("\"wss://relay.agorist.space\""));
+		assertTrue(html.contains("\"wss://yabu.me/v2\""));
+		assertTrue(html.contains("\"wss://relay.binaryrobot.com\""));
+		assertTrue(html.contains("\"wss://ftp.halifax.rwth-aachen.de/nostr\""));
+		assertTrue(html.contains("\"wss://nostr.data.haus\""));
+		assertTrue(html.contains("\"wss://nostr.vulpem.com\""));
+		assertTrue(html.contains("\"wss://nos.lol\""));
+		assertTrue(html.contains("\"wss://relay.nostrdice.com\""));
+		assertFalse(html.contains("trystero@0.21.8/torrent/+esm"));
+		assertFalse(html.contains("relay.nostraddress.com"));
+		assertFalse(html.contains("relay.damus.io"));
+		assertFalse(html.contains("\"wss://tracker.openwebtorrent.com\""));
+		assertFalse(html.contains("\"wss://tracker.btorrent.xyz\""));
 		assertFalse(html.contains("\"wss://tracker.webtorrent.dev\""));
 		assertFalse(html.contains("\"wss://tracker.files.fm:7073/announce\""));
 		assertTrue(html.contains("MULTIPLAYER_TRYSTERO_CONFIG"));
@@ -264,8 +275,8 @@ public class WebIndexTemplateTest {
 		assertTrue(html.contains("!debugOnly || state.multiplayerDebug"));
 		assertTrue(html.contains("logWebParity(\"multiplayer status\", {"));
 		assertTrue(html.contains("state.participantSource === MULTIPLAYER_ROOM_SOURCE_ROOM_UI"));
-		assertTrue(html.contains("payload.mirrorState = state.localMirrorState"));
-		assertTrue(html.contains("handlePeerMirrorReplay(data.mirrorState, \"status\")"));
+		assertTrue(html.contains("payload.mirrorState = mirrorState"));
+		assertTrue(html.contains("handlePeerMirrorReplay(data.mirrorState, mirrorKind)"));
 		assertTrue(html.contains("debugOnly: true"));
 		assertTrue(html.contains("debugOnly: mirrorOnly"));
 		assertTrue(html.contains("Peer Mirror"));
@@ -819,7 +830,55 @@ public class WebIndexTemplateTest {
 		assertFalse(replayHandler.contains("clearActivePeerDisconnect"));
 		assertTrue(progressHandler.contains("|| state.activeDisconnectedPlayers.has(remotePlayerId)"));
 		assertFalse(progressHandler.contains("clearActivePeerDisconnect"));
-		assertTrue(helloHandler.contains("clearActivePeerDisconnect(remotePlayerId);"));
+		assertTrue(helloHandler.contains("&& clearActivePeerDisconnect(remotePlayerId);"));
+	}
+
+	@Test
+	public void activeRoomReturnCarriesMirrorPositionAcrossRejoin() throws IOException {
+		String html = readIndexTemplate();
+		String restoreActive = sectionBetween(html,
+				"function restoreActiveRoomRunSnapshot(session)",
+				"function participantAuthPublicKeysForSnapshot(snapshot)");
+		String launchConfig = sectionBetween(html,
+				"function launchedMultiplayerConfigForSession(session)",
+				"function installLaunchedMultiplayerRuntime(session)");
+		String activeRuntime = sectionBetween(html,
+				"function installWebMultiplayer(launchConfig)",
+				"installWebMultiplayer();");
+		String helloSender = sectionBetween(activeRuntime,
+				"function sendHelloIfReady(peerId)",
+				"function statusMessageHasRoomOutcome(message)");
+		String activeConfig = sectionBetween(activeRuntime,
+				"function activeRoomSessionConfig()",
+				"function markActiveRoomReturnDeadline(reason)");
+		String replayAnnounce = sectionBetween(activeRuntime,
+				"announceReplayEvent: function(kind, depth, branch, cell, message)",
+				"pollJavaEvent: function()");
+		String saveSnapshot = sectionBetween(activeRuntime,
+				"saveActiveRunSnapshot: function(sourceSlot, snapshotFilesJson)",
+				"switchWatchTarget: function(targetId)");
+		String helloHandler = sectionBetween(activeRuntime,
+				"function handleHello(data, peerId)",
+				"state.debugInjectPeerHello = function");
+
+		assertTrue(restoreActive.contains("session.activeLocalMirrorState = saved.localMirrorState || null;"));
+		assertTrue(restoreActive.contains("session.activeReplaySequence = Number(saved.replaySequence) || 0;"));
+		assertTrue(launchConfig.contains("localMirrorState: session.activeLocalMirrorState || null"));
+		assertTrue(launchConfig.contains("replaySequence: Number(session.activeReplaySequence) || 0"));
+		assertTrue(activeRuntime.contains("localMirrorState: launchConfig && launchConfig.localMirrorState"));
+		assertTrue(activeRuntime.contains("replaySequence: launchConfig ? Number(launchConfig.replaySequence) || 0 : 0"));
+		assertTrue(helloSender.contains("const mirrorState = currentMirrorKeyframe();"));
+		assertTrue(helloSender.contains("payload.mirrorState = mirrorState;"));
+		assertFalse(helloSender.contains("state.localMirrorState.kind === \"status\""));
+		assertTrue(activeConfig.contains("localMirrorState: state.localMirrorState"));
+		assertTrue(activeConfig.contains("replaySequence: state.replaySequence"));
+		assertTrue(replayAnnounce.contains("saveRoomActiveMultiplayerConfig(activeRoomSessionConfig());"));
+		assertTrue(saveSnapshot.contains("localMirrorState: state.localMirrorState"));
+		assertTrue(saveSnapshot.contains("replaySequence: state.replaySequence"));
+		assertTrue(saveSnapshot.contains("saveRoomActiveMultiplayerConfig(activeRoomSessionConfig());"));
+		assertTrue(helloHandler.contains("const mirrorKind = String(data.mirrorState.kind || \"move\");"));
+		assertTrue(helloHandler.contains("requestPeerMirrorKeyframe(remotePlayerId, true);"));
+		assertFalse(helloHandler.contains("data.mirrorState.kind === \"status\""));
 	}
 
 	@Test
@@ -1042,6 +1101,46 @@ public class WebIndexTemplateTest {
 	}
 
 	@Test
+	public void devUrlRoomActionMatrixKeepsRefreshAndReconnectInHarnessBoundary() throws IOException {
+		String html = readIndexTemplate();
+		String devUrlRunner = sectionBetween(html,
+				"const multiplayerDevUrlRoomActionRunner = {",
+				"window.__shpdMultiplayerRooms = {");
+		String bridgeObject = sectionBetween(html,
+				"window.__shpdMultiplayerRooms = {",
+				"function multiplayerEncodeEvent(type, values)");
+		String roomTransport = sectionBetween(html,
+				"function startMultiplayerRoomTransport(session)",
+				"function startRequestedMultiplayerRoomSession(session, sessionSource)");
+		String rejoinCreation = sectionBetween(html,
+				"async function createMultiplayerRoomRejoinSession()",
+				"async function createMultiplayerRoomSession(mode, input)");
+		String activeRuntime = sectionBetween(html,
+				"function installWebMultiplayer(launchConfig)",
+				"loadMultiplayerTrysteroModule().then((trystero) => {");
+
+		assertTrue(bridgeObject.contains("sourceRoomUi: MULTIPLAYER_ROOM_SOURCE_ROOM_UI"));
+		assertTrue(bridgeObject.contains("sourceDevUrl: MULTIPLAYER_ROOM_SOURCE_DEV_URL"));
+		assertTrue(bridgeObject.contains("hasRejoinCandidate: hasStoredRoomRejoinCandidate"));
+		assertTrue(bridgeObject.contains("requestRejoin: requestMultiplayerRoomRejoin"));
+		assertTrue(bridgeObject.contains("createRoomSession: createMultiplayerRoomSession"));
+		assertTrue(roomTransport.contains("window.addEventListener(\"pagehide\", cleanupMultiplayerRoomEntryOnPageHide"));
+		assertTrue(roomTransport.contains("window.addEventListener(\"beforeunload\", cleanupMultiplayerRoomEntryOnBeforeUnload"));
+		assertTrue(rejoinCreation.contains("candidate.kind === \"reconnect\""));
+		assertTrue(rejoinCreation.contains("candidate.kind === \"active-return\""));
+		assertTrue(activeRuntime.contains("loadRoomActiveMultiplayerConfig()"));
+
+		assertFalse(devUrlRunner.contains("requestMultiplayerRoomRejoin"));
+		assertFalse(devUrlRunner.contains("hasStoredRoomRejoinCandidate"));
+		assertFalse(devUrlRunner.contains("loadStoredRoomSessionForRejoinCandidate"));
+		assertFalse(devUrlRunner.contains("cleanupMultiplayerRoomEntryOnPageHide"));
+		assertFalse(devUrlRunner.contains("room-reconnect"));
+		assertFalse(devUrlRunner.contains("active-return"));
+		assertFalse(devUrlRunner.contains("beforeunload"));
+		assertFalse(devUrlRunner.contains("\"role-toggle\""));
+	}
+
+	@Test
 	public void watcherReplayStillFeedsPeerRowsBeforeTargetFilter() throws IOException {
 		String html = readIndexTemplate();
 		String replayHandler = sectionBetween(html,
@@ -1101,7 +1200,13 @@ public class WebIndexTemplateTest {
 		assertTrue(launchHelpers.contains("watchTargetId: firstPlayer && firstPlayer.participantId || \"\""));
 		assertTrue(launchHelpers.contains("join(\",\")"));
 		assertTrue(launchHelpers.contains("playerSeatOrderForSnapshot(snapshot)"));
+		assertTrue(launchHelpers.contains("function roomLaunchPlayerNameFromValues(values)"));
+		assertTrue(launchHelpers.contains("return String(values[11] || \"\").trim();"));
+		assertTrue(launchHelpers.contains("function activeConfigPlayerName(config, playerId)"));
+		assertTrue(launchHelpers.contains("configured === playerId"));
 		assertTrue(activeRuntime.contains("playerSeatOrder: launchConfig ? String(launchConfig.playerSeatOrder || \"\") : \"\""));
+		assertTrue(activeRuntime.contains("launchConfig.playerName = activeConfigPlayerName(launchConfig, playerId);"));
+		assertTrue(activeRuntime.contains("playerName: launchConfig ? activeConfigPlayerName(launchConfig, playerId) : playerId"));
 		assertTrue(activeRuntime.contains("roomEpoch: launchConfig ? Number(launchConfig.roomEpoch) || 0 : 0"));
 		assertTrue(activeRuntime.contains("get playerSeatOrder()"));
 		assertTrue(activeRuntime.contains("get roomEpoch()"));

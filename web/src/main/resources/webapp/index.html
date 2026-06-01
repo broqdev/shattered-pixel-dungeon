@@ -1105,11 +1105,17 @@
                 restoreSnapshot: restoreBrowserDataSnapshot
             };
 
-            const MULTIPLAYER_TRYSTERO_MODULE = "https://cdn.jsdelivr.net/npm/trystero@0.21.8/torrent/+esm";
+            const MULTIPLAYER_TRYSTERO_MODULE = "https://cdn.jsdelivr.net/npm/trystero@0.21.8/nostr/+esm";
             const MULTIPLAYER_APP_ID = "shattered-pixel-dungeon-web";
             const MULTIPLAYER_TRYSTERO_RELAY_URLS = [
-                "wss://tracker.openwebtorrent.com",
-                "wss://tracker.btorrent.xyz"
+                "wss://relay.agorist.space",
+                "wss://yabu.me/v2",
+                "wss://relay.binaryrobot.com",
+                "wss://ftp.halifax.rwth-aachen.de/nostr",
+                "wss://nostr.data.haus",
+                "wss://nostr.vulpem.com",
+                "wss://nos.lol",
+                "wss://relay.nostrdice.com"
             ];
             const MULTIPLAYER_TRYSTERO_CONFIG = {
                 appId: MULTIPLAYER_APP_ID,
@@ -3230,6 +3236,22 @@
                 ];
             }
 
+            function roomLaunchPlayerNameFromValues(values) {
+                if (!Array.isArray(values)) {
+                    return "";
+                }
+                return String(values[11] || "").trim();
+            }
+
+            function activeConfigPlayerName(config, playerId) {
+                const configured = String(config && config.playerName || "").trim();
+                const launched = roomLaunchPlayerNameFromValues(config && config.roomLaunchEventValues);
+                if (launched && (!configured || configured === playerId)) {
+                    return launched;
+                }
+                return configured || playerId;
+            }
+
             function pushRoomLaunchEvent(session) {
                 pushMultiplayerRoomEvent("room-launch", roomLaunchEventValues(session));
             }
@@ -3268,6 +3290,9 @@
                     storage.setItem(restoreKey + ".message",
                             "Restored room run for player " + session.participantId + ".");
                     storage.setItem(restoreKey + ".resumeSlot", String(MULTIPLAYER_ACTIVE_RETURN_SLOT));
+                    session.activeLocalMirrorState = saved.localMirrorState || null;
+                    session.activeLocalMirrorStatusMessage = String(saved.localMirrorStatusMessage || "");
+                    session.activeReplaySequence = Number(saved.replaySequence) || 0;
                     return { ok: true, result };
                 } catch (error) {
                     return { ok: false, message: browserDataBackupErrorMessage(error) };
@@ -3304,7 +3329,10 @@
                     participantSource: MULTIPLAYER_ROOM_SOURCE_ROOM_UI,
                     authPrivateKey: session.authPrivateKey || null,
                     participantAuthPublicKeys: participantAuthPublicKeysForSnapshot(snapshot),
-                    roomLaunchEventValues: roomLaunchEventValues(session)
+                    roomLaunchEventValues: roomLaunchEventValues(session),
+                    localMirrorState: session.activeLocalMirrorState || null,
+                    localMirrorStatusMessage: session.activeLocalMirrorStatusMessage || "",
+                    replaySequence: Number(session.activeReplaySequence) || 0
                 };
             }
 
@@ -4720,6 +4748,7 @@
                     return;
                 }
                 if (launchConfig) {
+                    launchConfig.playerName = activeConfigPlayerName(launchConfig, playerId);
                     saveRoomActiveMultiplayerConfig(launchConfig);
                 }
 
@@ -4733,7 +4762,7 @@
                 const state = {
                     enabled: true,
                     playerId,
-                    playerName: launchConfig ? String(launchConfig.playerName || playerId) : playerId,
+                    playerName: launchConfig ? activeConfigPlayerName(launchConfig, playerId) : playerId,
                     playerColor: launchConfig ? String(launchConfig.playerColor || "") : "",
                     playerSeatOrder: launchConfig ? String(launchConfig.playerSeatOrder || "") : "",
                     roomEpoch: launchConfig ? Number(launchConfig.roomEpoch) || 0 : 0,
@@ -4769,9 +4798,11 @@
                     keyframeStatusPushed: false,
                     keyframeFailureStatusPushed: false,
                     watchTargetSeen: false,
-                    replaySequence: 0,
-                    localMirrorState: null,
-                    localMirrorStatusMessage: "",
+                    replaySequence: launchConfig ? Number(launchConfig.replaySequence) || 0 : 0,
+                    localMirrorState: launchConfig && launchConfig.localMirrorState
+                            ? Object.assign({}, launchConfig.localMirrorState) : null,
+                    localMirrorStatusMessage: launchConfig
+                            ? String(launchConfig.localMirrorStatusMessage || "") : "",
                     localRoomOutcomeMessage: "",
                     expectedReplaySequence: 0,
                     replayReady: !isWatcher,
@@ -4990,9 +5021,11 @@
                         role: state.isWatcher ? "watcher" : "player",
                         watchTargetId: state.watchTargetId
                     };
-                    if (!state.isWatcher && state.localMirrorState
-                            && state.localMirrorState.kind === "status") {
-                        payload.mirrorState = state.localMirrorState;
+                    if (!state.isWatcher) {
+                        const mirrorState = currentMirrorKeyframe();
+                        if (mirrorState) {
+                            payload.mirrorState = mirrorState;
+                        }
                     }
                     if (!state.isWatcher && state.localRoomOutcomeMessage) {
                         payload.roomOutcome = state.localRoomOutcomeMessage;
@@ -5013,11 +5046,28 @@
                 function activeRoomSessionConfig() {
                     return {
                         playerId: state.playerId,
+                        playerName: state.playerName,
+                        playerColor: state.playerColor,
+                        playerSeatOrder: state.playerSeatOrder,
+                        roomEpoch: state.roomEpoch,
                         roomId: state.roomId,
-                            roomName: state.visibleRoomName,
-                            roomRunId: state.roomRunId
-                        };
-                    }
+                        roomName: state.visibleRoomName,
+                        roomRunId: state.roomRunId,
+                        isWatcher: state.isWatcher,
+                        watchTargetId: state.watchTargetId,
+                        floorChaseTurns: state.floorChaseTurns,
+                        floorChaseInfinite: state.floorChaseInfinite,
+                        participantSource: state.participantSource,
+                        authPrivateKey: state.authPrivateKey || null,
+                        participantAuthPublicKeys: state.participantAuthPublicKeys || {},
+                        roomLaunchEventValues: state.roomLaunchEventValues
+                                ? state.roomLaunchEventValues.slice() : null,
+                        localMirrorState: state.localMirrorState
+                                ? Object.assign({}, state.localMirrorState) : null,
+                        localMirrorStatusMessage: state.localMirrorStatusMessage || "",
+                        replaySequence: state.replaySequence
+                    };
+                }
 
                 function markActiveRoomReturnDeadline(reason) {
                     if (state.participantSource !== MULTIPLAYER_ROOM_SOURCE_ROOM_UI
@@ -5283,6 +5333,9 @@
                             }
                             }
                             state.localMirrorState = Object.assign({}, payload);
+                            if (state.participantSource === MULTIPLAYER_ROOM_SOURCE_ROOM_UI) {
+                                saveRoomActiveMultiplayerConfig(activeRoomSessionConfig());
+                            }
                         }
                         sendActivePayload("replay", payload, state.sendReplayEvent);
                     },
@@ -5381,8 +5434,15 @@
                             storage.setItem(activeRunSnapshotStorageKey(restoreKey), JSON.stringify({
                                 sourceSlot: Number.isFinite(parsedSourceSlot) ? parsedSourceSlot : 1,
                                 savedAt: Date.now(),
-                                snapshot
+                                snapshot,
+                                localMirrorState: state.localMirrorState
+                                        ? Object.assign({}, state.localMirrorState) : null,
+                                localMirrorStatusMessage: state.localMirrorStatusMessage || "",
+                                replaySequence: state.replaySequence
                             }));
+                            if (state.participantSource === MULTIPLAYER_ROOM_SOURCE_ROOM_UI) {
+                                saveRoomActiveMultiplayerConfig(activeRoomSessionConfig());
+                            }
                             logWebParity("multiplayer active run snapshot saved", {
                                 playerId,
                                 roomId: state.visibleRoomName,
@@ -5419,23 +5479,7 @@
                                 storage.removeItem(watcherRestoreKey + ".replayReady");
                             }
                             if (state.participantSource === MULTIPLAYER_ROOM_SOURCE_ROOM_UI) {
-                                saveRoomActiveMultiplayerConfig({
-                                    playerId: state.playerId,
-                                    playerName: state.playerName,
-                                    playerColor: state.playerColor,
-                                    playerSeatOrder: state.playerSeatOrder,
-                                    roomEpoch: state.roomEpoch,
-                                    roomRunId: state.roomRunId,
-                                    roomId: state.roomId,
-                                    roomName: state.visibleRoomName,
-                                    isWatcher: true,
-                                    watchTargetId: state.watchTargetId,
-                                    floorChaseTurns: state.floorChaseTurns,
-                                    floorChaseInfinite: state.floorChaseInfinite,
-                                    participantSource: state.participantSource,
-                                    authPrivateKey: state.authPrivateKey || null,
-                                    participantAuthPublicKeys: state.participantAuthPublicKeys || {}
-                                });
+                                saveRoomActiveMultiplayerConfig(activeRoomSessionConfig());
                         } else {
                             try {
                                 window.history.replaceState(null, "", multiplayerUrlWithWatchTarget(targetId));
@@ -5875,12 +5919,17 @@
                         }
                         peerPlayers.set(peerId, remotePlayerId);
                         peerRoles.set(peerId, data.role === "watcher" ? "watcher" : "player");
+                        const returned = data.role !== "watcher"
+                                && clearActivePeerDisconnect(remotePlayerId);
                         if (data.role !== "watcher") {
-                            clearActivePeerDisconnect(remotePlayerId);
-                        }
-                        if (data.role !== "watcher" && data.mirrorState
-                                && data.mirrorState.kind === "status") {
-                            handlePeerMirrorReplay(data.mirrorState, "status");
+                            if (data.mirrorState) {
+                                const mirrorKind = String(data.mirrorState.kind || "move");
+                                if (mirrorKind === "move" || mirrorKind === "transition" || mirrorKind === "status") {
+                                    handlePeerMirrorReplay(data.mirrorState, mirrorKind);
+                                }
+                            } else if (returned) {
+                                requestPeerMirrorKeyframe(remotePlayerId, true);
+                            }
                         }
                         if (data.role !== "watcher" && data.roomOutcome) {
                             javaEvents.push(multiplayerEncodeEvent("outcome-status", [
