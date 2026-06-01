@@ -25,7 +25,6 @@ import com.shatteredpixel.shatteredpixeldungeon.Assets;
 import com.shatteredpixel.shatteredpixeldungeon.Badges;
 import com.shatteredpixel.shatteredpixeldungeon.Chrome;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
-import com.shatteredpixel.shatteredpixeldungeon.GamesInProgress;
 import com.shatteredpixel.shatteredpixeldungeon.Rankings;
 import com.shatteredpixel.shatteredpixeldungeon.SPDSettings;
 import com.shatteredpixel.shatteredpixeldungeon.ShatteredPixelDungeon;
@@ -34,6 +33,7 @@ import com.shatteredpixel.shatteredpixeldungeon.effects.Fireball;
 import com.shatteredpixel.shatteredpixeldungeon.journal.Document;
 import com.shatteredpixel.shatteredpixeldungeon.journal.Journal;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
+import com.shatteredpixel.shatteredpixeldungeon.multiplayer.WebMultiplayer;
 import com.shatteredpixel.shatteredpixeldungeon.ui.Icons;
 import com.shatteredpixel.shatteredpixeldungeon.ui.TitleBackground;
 import com.shatteredpixel.shatteredpixeldungeon.ui.RenderedTextBlock;
@@ -51,7 +51,6 @@ import com.watabou.utils.DeviceCompat;
 import com.watabou.utils.FileUtils;
 import com.watabou.utils.RectF;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.logging.Logger;
 
@@ -67,6 +66,10 @@ public class WelcomeScene extends PixelScene {
 	@Override
 	public void create() {
 		super.create();
+
+		if (WebMultiplayer.resumeWatcherIfRequested() || WebMultiplayer.resumeCloneIfRequested()) {
+			return;
+		}
 
 		final int previousVersion = SPDSettings.version();
 
@@ -159,21 +162,9 @@ public class WelcomeScene extends PixelScene {
 					}
 
 					SPDSettings.version(ShatteredPixelDungeon.versionCode);
-					GamesInProgress.selectedClass = null;
-					ArrayList<GamesInProgress.Info> games = GamesInProgress.checkAll();
-					GamesInProgress.curSlot = GamesInProgress.firstEmpty();
-					boolean routeToTitle = shouldRouteIntroToTitle(games.size(), GamesInProgress.curSlot,
-							Rankings.INSTANCE.totalNumber);
-					webParityLog("welcome continue existingGames=" + games.size()
-							+ " firstEmpty=" + GamesInProgress.curSlot
-							+ " rankings=" + Rankings.INSTANCE.totalNumber
-							+ " route=" + (routeToTitle ? "title" : "heroSelect"));
-					if (routeToTitle){
-						SPDSettings.intro(false);
-						ShatteredPixelDungeon.switchScene(TitleScene.class);
-					} else {
-						ShatteredPixelDungeon.switchScene(HeroSelectScene.class);
-					}
+					SPDSettings.intro(false);
+					webParityLog("welcome continue route=title");
+					ShatteredPixelDungeon.switchScene(TitleScene.class);
 				} else {
 					updateVersion(previousVersion);
 					ShatteredPixelDungeon.switchScene(TitleScene.class);
@@ -206,6 +197,7 @@ public class WelcomeScene extends PixelScene {
 			okay.icon(Icons.get(Icons.ENTER));
 			add(okay);
 		}
+		logButtonBounds("welcome enter", okay);
 
 		RenderedTextBlock text = PixelScene.renderTextBlock(6);
 		String message;
@@ -312,12 +304,23 @@ public class WelcomeScene extends PixelScene {
 	}
 
 	static boolean shouldRouteIntroToTitle(int existingGames, int firstEmptySlot, int rankingTotal) {
-		return existingGames > 0 || firstEmptySlot == -1 || rankingTotal > 0;
+		return true;
 	}
 
 	private static void webParityLog(String message) {
 		if (DeviceCompat.webParityLoggingEnabled()) {
 			LOG.info("[WEB-PARITY] " + message);
+		}
+	}
+
+	private static void logButtonBounds(String name, StyledButton button) {
+		if (DeviceCompat.webParityLoggingEnabled() && button != null) {
+			webParityLog(name + " button bounds x=" + button.left()
+					+ " y=" + button.top()
+					+ " width=" + button.width()
+					+ " height=" + button.height()
+					+ " centerX=" + button.centerX()
+					+ " centerY=" + button.centerY());
 		}
 	}
 	

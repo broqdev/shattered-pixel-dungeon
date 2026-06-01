@@ -25,6 +25,7 @@ import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.SPDSettings;
 import com.shatteredpixel.shatteredpixeldungeon.ShatteredPixelDungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
+import com.shatteredpixel.shatteredpixeldungeon.multiplayer.WebMultiplayer;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.ItemSpriteSheet;
 import com.shatteredpixel.shatteredpixeldungeon.windows.WndSupportPrompt;
 import com.watabou.noosa.Game;
@@ -49,7 +50,7 @@ public class WornKey extends Key {
 
 	@Override
 	public boolean doPickUp(Hero hero, int pos) {
-		if(!SPDSettings.supportNagged()){
+		if(!SPDSettings.supportNagged() && !WebMultiplayer.suppressSupportPrompts()){
 			try {
 				Dungeon.saveAll("wornKeySupportPrompt");
 				Game.runOnRenderThread(new Callback() {

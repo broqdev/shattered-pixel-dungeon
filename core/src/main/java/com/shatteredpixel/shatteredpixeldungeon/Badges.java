@@ -648,7 +648,7 @@ public class Badges {
 		for (Document doc : Document.values()){
 			if (!doc.isLoreDoc()) {
 				for (String page : doc.pageNames()){
-					if (doc.isPageFound(page)) totalSeen++;
+					if (doc.isPageFoundInProgress(page)) totalSeen++;
 					totalThings++;
 				}
 			}
@@ -1193,6 +1193,7 @@ public class Badges {
 	}
 	
 	public static boolean isUnlocked( Badge badge ) {
+		loadGlobal();
 		return global.contains( badge );
 	}
 	

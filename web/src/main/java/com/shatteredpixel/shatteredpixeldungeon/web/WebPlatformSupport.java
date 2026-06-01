@@ -76,13 +76,366 @@ public class WebPlatformSupport extends PlatformSupport {
 		return webParityLoggingEnabledNative();
 	}
 
+	@Override
+	protected void setTextInputActive(boolean value, boolean multiline) {
+		setTextInputActiveNative(value, multiline);
+	}
+
 	@JSBody(script = "return typeof window !== 'undefined' && window.__shpdWebParityLogging === true;")
 	private static native boolean webParityLoggingEnabledNative();
+
+	@JSBody(params = { "value", "multiline" },
+			script = "if (typeof window !== 'undefined') {"
+					+ " if (typeof window.__shpdSetGameTextInputActive === 'function') {"
+					+ "  window.__shpdSetGameTextInputActive(value === true, multiline === true);"
+					+ " } else {"
+					+ "  window.__shpdGameTextInputActive = value === true;"
+					+ " }"
+					+ "}")
+	private static native void setTextInputActiveNative(boolean value, boolean multiline);
 
 	@Override
 	public BrowserDataBackup browserDataBackup() {
 		return browserDataBackup;
 	}
+
+	@Override
+	public boolean multiplayerEnabled() {
+		return multiplayerEnabledNative();
+	}
+
+	@Override
+	public boolean multiplayerRoomEntryAvailable() {
+		return multiplayerRoomEntryAvailableNative();
+	}
+
+	@Override
+	public boolean requestMultiplayerRoomEntry(String mode, String roomName, String password, String playerName) {
+		return requestMultiplayerRoomEntryNative(mode, roomName, password, playerName);
+	}
+
+	@Override
+	public boolean multiplayerRoomRejoinAvailable() {
+		return multiplayerRoomRejoinAvailableNative();
+	}
+
+	@Override
+	public boolean requestMultiplayerRoomRejoin() {
+		return requestMultiplayerRoomRejoinNative();
+	}
+
+	@Override
+	public String pollMultiplayerRoomEvent() {
+		return pollMultiplayerRoomEventNative();
+	}
+
+	@Override
+	public boolean requestMultiplayerRoomAction(String action, String value) {
+		return requestMultiplayerRoomActionNative(action, value);
+	}
+
+	@Override
+	public void leaveMultiplayerRoomEntry() {
+		leaveMultiplayerRoomEntryNative();
+	}
+
+	@Override
+	public String multiplayerPlayerId() {
+		return multiplayerPlayerIdNative();
+	}
+
+	@Override
+	public String multiplayerPlayerName() {
+		return multiplayerPlayerNameNative();
+	}
+
+	@Override
+	public String multiplayerPlayerColor() {
+		return multiplayerPlayerColorNative();
+	}
+
+	@Override
+	public String multiplayerPlayerSeatOrder() {
+		return multiplayerPlayerSeatOrderNative();
+	}
+
+	@Override
+	public int multiplayerRoomEpoch() {
+		return multiplayerRoomEpochNative();
+	}
+
+	@Override
+	public boolean multiplayerWatcher() {
+		return multiplayerWatcherNative();
+	}
+
+	@Override
+	public String multiplayerWatchTargetId() {
+		return multiplayerWatchTargetIdNative();
+	}
+
+	@Override
+	public void announceMultiplayerProgress(int slot, int depth, int branch, int turns) {
+		announceMultiplayerProgressNative(slot, depth, branch, turns);
+	}
+
+	@Override
+	public void announceMultiplayerReplayEvent(String kind, int depth, int branch, int cell, String message) {
+		announceMultiplayerReplayEventNative(kind, depth, branch, cell, message);
+	}
+
+	@Override
+	public String pollMultiplayerEvent() {
+		return pollMultiplayerEventNative();
+	}
+
+	@Override
+	public int consumeMultiplayerResumeSlot() {
+		return consumeMultiplayerResumeSlotNative();
+	}
+
+	@Override
+	public boolean consumeMultiplayerWatcherResumeRequested() {
+		return consumeMultiplayerWatcherResumeRequestedNative();
+	}
+
+	@Override
+	public void requestMultiplayerWatcherKeyframe() {
+		requestMultiplayerWatcherKeyframeNative();
+	}
+
+	@Override
+	public void sendMultiplayerWatcherKeyframe(String watcherId, String requestId) {
+		sendMultiplayerWatcherKeyframe(watcherId, requestId, "");
+	}
+
+	@Override
+	public void sendMultiplayerWatcherKeyframe(String watcherId, String requestId, String snapshotFilesJson) {
+		sendMultiplayerWatcherKeyframeNative(watcherId, requestId, snapshotFilesJson);
+	}
+
+	@Override
+	public void saveActiveMultiplayerRunSnapshot(int sourceSlot, String snapshotFilesJson) {
+		saveActiveMultiplayerRunSnapshotNative(sourceSlot, snapshotFilesJson);
+	}
+
+	@Override
+	public void switchMultiplayerWatchTarget(String targetId) {
+		switchMultiplayerWatchTargetNative(targetId);
+	}
+
+	@Override
+	public boolean continueMultiplayerAsWatcher(String targetId) {
+		return continueMultiplayerAsWatcherNative(targetId);
+	}
+
+	@Override
+	public void markMultiplayerWatchReturnEligible(String reason) {
+		markMultiplayerWatchReturnEligibleNative(reason);
+	}
+
+	@Override
+	public void disconnectActiveMultiplayerGame() {
+		disconnectActiveMultiplayerGameNative();
+	}
+
+	@Override
+	public void finishActiveMultiplayerRoom() {
+		finishActiveMultiplayerRoomNative();
+	}
+
+	@JSBody(script = "return typeof window !== 'undefined'"
+			+ " && !!window.__shpdMultiplayer"
+			+ " && window.__shpdMultiplayer.enabled === true;")
+	private static native boolean multiplayerEnabledNative();
+
+	@JSBody(script = "return typeof window !== 'undefined'"
+			+ " && !!window.__shpdMultiplayerRooms"
+			+ " && typeof window.__shpdMultiplayerRooms.requestRoom === 'function'"
+			+ " ? (typeof window.__shpdMultiplayerRooms.prewarmTransport === 'function'"
+			+ "  && window.__shpdMultiplayerRooms.prewarmTransport('entry-available'), true) : false;")
+	private static native boolean multiplayerRoomEntryAvailableNative();
+
+	@JSBody(params = { "mode", "roomName", "password", "playerName" },
+			script = "if (typeof window !== 'undefined'"
+			+ " && !!window.__shpdMultiplayerRooms"
+			+ " && typeof window.__shpdMultiplayerRooms.requestRoom === 'function') {"
+			+ " window.__shpdMultiplayerRooms.requestRoom(mode, roomName, password, playerName);"
+			+ " return true;"
+			+ "}"
+			+ "return false;")
+	private static native boolean requestMultiplayerRoomEntryNative(String mode, String roomName, String password,
+			String playerName);
+
+	@JSBody(script = "return typeof window !== 'undefined'"
+			+ " && !!window.__shpdMultiplayerRooms"
+			+ " && typeof window.__shpdMultiplayerRooms.hasRejoinCandidate === 'function'"
+			+ " ? window.__shpdMultiplayerRooms.hasRejoinCandidate() === true : false;")
+	private static native boolean multiplayerRoomRejoinAvailableNative();
+
+	@JSBody(script = "if (typeof window !== 'undefined'"
+			+ " && !!window.__shpdMultiplayerRooms"
+			+ " && typeof window.__shpdMultiplayerRooms.requestRejoin === 'function') {"
+			+ " window.__shpdMultiplayerRooms.requestRejoin();"
+			+ " return true;"
+			+ "}"
+			+ "return false;")
+	private static native boolean requestMultiplayerRoomRejoinNative();
+
+	@JSBody(script = "return typeof window !== 'undefined'"
+			+ " && !!window.__shpdMultiplayerRooms"
+			+ " && typeof window.__shpdMultiplayerRooms.pollEvent === 'function'"
+			+ " ? window.__shpdMultiplayerRooms.pollEvent() : null;")
+	private static native String pollMultiplayerRoomEventNative();
+
+	@JSBody(params = { "action", "value" },
+			script = "return typeof window !== 'undefined'"
+			+ " && !!window.__shpdMultiplayerRooms"
+			+ " && typeof window.__shpdMultiplayerRooms.requestAction === 'function'"
+			+ " ? window.__shpdMultiplayerRooms.requestAction(action, value) === true : false;")
+	private static native boolean requestMultiplayerRoomActionNative(String action, String value);
+
+	@JSBody(script = "if (typeof window !== 'undefined'"
+			+ " && !!window.__shpdMultiplayerRooms"
+			+ " && typeof window.__shpdMultiplayerRooms.leaveRoom === 'function') {"
+			+ " window.__shpdMultiplayerRooms.leaveRoom();"
+			+ "}")
+	private static native void leaveMultiplayerRoomEntryNative();
+
+	@JSBody(script = "return typeof window !== 'undefined'"
+			+ " && !!window.__shpdMultiplayer"
+			+ " && typeof window.__shpdMultiplayer.playerId === 'string'"
+			+ " ? window.__shpdMultiplayer.playerId : '';")
+	private static native String multiplayerPlayerIdNative();
+
+	@JSBody(script = "return typeof window !== 'undefined'"
+			+ " && !!window.__shpdMultiplayer"
+			+ " && typeof window.__shpdMultiplayer.playerName === 'string'"
+			+ " ? window.__shpdMultiplayer.playerName : '';")
+	private static native String multiplayerPlayerNameNative();
+
+	@JSBody(script = "return typeof window !== 'undefined'"
+			+ " && !!window.__shpdMultiplayer"
+			+ " && typeof window.__shpdMultiplayer.playerColor === 'string'"
+			+ " ? window.__shpdMultiplayer.playerColor : '';")
+	private static native String multiplayerPlayerColorNative();
+
+	@JSBody(script = "return typeof window !== 'undefined'"
+			+ " && !!window.__shpdMultiplayer"
+			+ " && typeof window.__shpdMultiplayer.playerSeatOrder === 'string'"
+			+ " ? window.__shpdMultiplayer.playerSeatOrder : '';")
+	private static native String multiplayerPlayerSeatOrderNative();
+
+	@JSBody(script = "return typeof window !== 'undefined'"
+			+ " && !!window.__shpdMultiplayer"
+			+ " && typeof window.__shpdMultiplayer.roomEpoch === 'number'"
+			+ " ? window.__shpdMultiplayer.roomEpoch : 0;")
+	private static native int multiplayerRoomEpochNative();
+
+	@JSBody(script = "return typeof window !== 'undefined'"
+			+ " && !!window.__shpdMultiplayer"
+			+ " && window.__shpdMultiplayer.isWatcher === true;")
+	private static native boolean multiplayerWatcherNative();
+
+	@JSBody(script = "return typeof window !== 'undefined'"
+			+ " && !!window.__shpdMultiplayer"
+			+ " && typeof window.__shpdMultiplayer.watchTargetId === 'string'"
+			+ " ? window.__shpdMultiplayer.watchTargetId : '';")
+	private static native String multiplayerWatchTargetIdNative();
+
+	@JSBody(params = { "slot", "depth", "branch", "turns" },
+			script = "if (typeof window !== 'undefined'"
+					+ " && !!window.__shpdMultiplayer"
+					+ " && typeof window.__shpdMultiplayer.announceProgress === 'function') {"
+					+ " window.__shpdMultiplayer.announceProgress(slot, depth, branch, turns);"
+					+ "}")
+	private static native void announceMultiplayerProgressNative(int slot, int depth, int branch, int turns);
+
+	@JSBody(params = { "kind", "depth", "branch", "cell", "message" },
+			script = "if (typeof window !== 'undefined'"
+					+ " && !!window.__shpdMultiplayer"
+					+ " && typeof window.__shpdMultiplayer.announceReplayEvent === 'function') {"
+					+ " window.__shpdMultiplayer.announceReplayEvent(kind, depth, branch, cell, message);"
+					+ "}")
+	private static native void announceMultiplayerReplayEventNative(String kind, int depth, int branch,
+			int cell, String message);
+
+	@JSBody(script = "return typeof window !== 'undefined'"
+			+ " && !!window.__shpdMultiplayer"
+			+ " && typeof window.__shpdMultiplayer.pollJavaEvent === 'function'"
+			+ " ? window.__shpdMultiplayer.pollJavaEvent() : null;")
+	private static native String pollMultiplayerEventNative();
+
+	@JSBody(script = "return typeof window !== 'undefined'"
+			+ " && !!window.__shpdMultiplayer"
+			+ " && typeof window.__shpdMultiplayer.consumeResumeSlot === 'function'"
+			+ " ? window.__shpdMultiplayer.consumeResumeSlot() : 0;")
+	private static native int consumeMultiplayerResumeSlotNative();
+
+	@JSBody(script = "return typeof window !== 'undefined'"
+			+ " && !!window.__shpdMultiplayer"
+			+ " && typeof window.__shpdMultiplayer.consumeWatcherResumeRequested === 'function'"
+			+ " ? window.__shpdMultiplayer.consumeWatcherResumeRequested() === true : false;")
+	private static native boolean consumeMultiplayerWatcherResumeRequestedNative();
+
+	@JSBody(script = "if (typeof window !== 'undefined'"
+			+ " && !!window.__shpdMultiplayer"
+			+ " && typeof window.__shpdMultiplayer.requestWatcherKeyframe === 'function') {"
+			+ " window.__shpdMultiplayer.requestWatcherKeyframe();"
+			+ "}")
+	private static native void requestMultiplayerWatcherKeyframeNative();
+
+	@JSBody(params = { "watcherId", "requestId", "snapshotFilesJson" }, script = "if (typeof window !== 'undefined'"
+			+ " && !!window.__shpdMultiplayer"
+			+ " && typeof window.__shpdMultiplayer.sendWatcherKeyframe === 'function') {"
+			+ " window.__shpdMultiplayer.sendWatcherKeyframe(watcherId, requestId, snapshotFilesJson);"
+			+ "}")
+	private static native void sendMultiplayerWatcherKeyframeNative(String watcherId, String requestId,
+			String snapshotFilesJson);
+
+	@JSBody(params = { "sourceSlot", "snapshotFilesJson" }, script = "return typeof window !== 'undefined'"
+			+ " && !!window.__shpdMultiplayer"
+			+ " && typeof window.__shpdMultiplayer.saveActiveRunSnapshot === 'function'"
+			+ " ? window.__shpdMultiplayer.saveActiveRunSnapshot(sourceSlot, snapshotFilesJson) === true : false;")
+	private static native boolean saveActiveMultiplayerRunSnapshotNative(int sourceSlot, String snapshotFilesJson);
+
+	@JSBody(params = { "targetId" }, script = "if (typeof window !== 'undefined'"
+			+ " && !!window.__shpdMultiplayer"
+			+ " && typeof window.__shpdMultiplayer.switchWatchTarget === 'function') {"
+			+ " window.__shpdMultiplayer.switchWatchTarget(targetId);"
+			+ "}")
+	private static native void switchMultiplayerWatchTargetNative(String targetId);
+
+	@JSBody(params = { "targetId" }, script = "return typeof window !== 'undefined'"
+			+ " && !!window.__shpdMultiplayer"
+			+ " && typeof window.__shpdMultiplayer.continueAsWatcher === 'function'"
+			+ " ? window.__shpdMultiplayer.continueAsWatcher(targetId) === true : false;")
+	private static native boolean continueMultiplayerAsWatcherNative(String targetId);
+
+	@JSBody(params = { "reason" }, script = "if (typeof window !== 'undefined'"
+			+ " && !!window.__shpdMultiplayer"
+			+ " && typeof window.__shpdMultiplayer.markWatchReturnEligible === 'function') {"
+			+ " window.__shpdMultiplayer.markWatchReturnEligible(reason);"
+			+ "}")
+	private static native void markMultiplayerWatchReturnEligibleNative(String reason);
+
+	@JSBody(script = "if (typeof window !== 'undefined'"
+			+ " && !!window.__shpdMultiplayer"
+			+ " && typeof window.__shpdMultiplayer.disconnect === 'function') {"
+			+ " window.__shpdMultiplayer.disconnect();"
+			+ "}")
+	private static native void disconnectActiveMultiplayerGameNative();
+
+	@JSBody(script = "if (typeof window !== 'undefined'"
+			+ " && !!window.__shpdMultiplayer"
+			+ " && typeof window.__shpdMultiplayer.finishRoom === 'function') {"
+			+ " window.__shpdMultiplayer.finishRoom();"
+			+ "} else if (typeof window !== 'undefined'"
+			+ " && !!window.__shpdMultiplayer"
+			+ " && typeof window.__shpdMultiplayer.disconnect === 'function') {"
+			+ " window.__shpdMultiplayer.disconnect();"
+			+ "}")
+	private static native void finishActiveMultiplayerRoomNative();
 
 	private static class WebBrowserDataBackup implements BrowserDataBackup {
 

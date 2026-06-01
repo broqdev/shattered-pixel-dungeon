@@ -74,11 +74,13 @@ import com.shatteredpixel.shatteredpixeldungeon.levels.rooms.Room;
 import com.shatteredpixel.shatteredpixeldungeon.levels.rooms.secret.SecretRoom;
 import com.shatteredpixel.shatteredpixeldungeon.levels.traps.Trap;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
+import com.shatteredpixel.shatteredpixeldungeon.multiplayer.WebMultiplayer;
 import com.shatteredpixel.shatteredpixeldungeon.plants.Plant;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.CharSprite;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.DiscardedItemSprite;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.HeroSprite;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.ItemSprite;
+import com.shatteredpixel.shatteredpixeldungeon.sprites.PeerMirrorSprite;
 import com.shatteredpixel.shatteredpixeldungeon.tiles.CustomTilemap;
 import com.shatteredpixel.shatteredpixeldungeon.tiles.DungeonTerrainTilemap;
 import com.shatteredpixel.shatteredpixeldungeon.tiles.DungeonTileSheet;
@@ -100,6 +102,8 @@ import com.shatteredpixel.shatteredpixeldungeon.ui.Icons;
 import com.shatteredpixel.shatteredpixeldungeon.ui.InventoryPane;
 import com.shatteredpixel.shatteredpixeldungeon.ui.LootIndicator;
 import com.shatteredpixel.shatteredpixeldungeon.ui.MenuPane;
+import com.shatteredpixel.shatteredpixeldungeon.ui.MultiplayerChaseBanner;
+import com.shatteredpixel.shatteredpixeldungeon.ui.MultiplayerPlayerList;
 import com.shatteredpixel.shatteredpixeldungeon.ui.QuickSlotButton;
 import com.shatteredpixel.shatteredpixeldungeon.ui.ResumeIndicator;
 import com.shatteredpixel.shatteredpixeldungeon.ui.RightClickMenu;
@@ -154,7 +158,10 @@ import com.watabou.utils.RectF;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Locale;
+import java.util.Map;
 import java.util.logging.Logger;
 
 public class GameScene extends PixelScene {
@@ -202,6 +209,7 @@ public class GameScene extends PixelScene {
 	private Group emoicons;
 	private Group overFogEffects;
 	private Group healthIndicators;
+	private HashMap<String, PeerMirrorSprite> peerMirrors;
 	private int lastLoggedEternalFireFallbackCells = -1;
 
 	private InventoryPane inventory;
@@ -209,6 +217,8 @@ public class GameScene extends PixelScene {
 
 	private Toolbar toolbar;
 	private Toast prompt;
+	private MultiplayerChaseBanner chaseBanner;
+	private MultiplayerPlayerList multiplayerPlayerList;
 
 	private AttackIndicator attack;
 	private LootIndicator loot;
@@ -330,6 +340,7 @@ public class GameScene extends PixelScene {
 		
 		mobs = new Group();
 		add( mobs );
+		peerMirrors = new HashMap<>();
 
 		hero = new HeroSprite();
 		hero.place( Dungeon.hero.pos );
@@ -492,6 +503,10 @@ public class GameScene extends PixelScene {
 		status.setRect(insets.left, uiSize > 0 ? uiCamera.height-39-insets.bottom : screentop, uiCamera.width - insets.left - insets.right, 0 );
 		add(status);
 
+		multiplayerPlayerList = new MultiplayerPlayerList();
+		multiplayerPlayerList.camera = uiCamera;
+		addToFront(multiplayerPlayerList);
+
 		if (uiSize < 2 && largeInsetTop != 0) {
 			SkinnedBlock bar = new SkinnedBlock(uiCamera.width, largeInsetTop, TextureCache.createSolid(0x88000000));
 			bar.camera = uiCamera;
@@ -613,7 +628,11 @@ public class GameScene extends PixelScene {
 			Dungeon.droppedItems.remove( Dungeon.depth );
 		}
 
-		Dungeon.hero.next();
+		if (WebMultiplayer.watcherView()) {
+			GLog.i("Watcher view loaded for player %s.", WebMultiplayer.watchTargetId());
+		} else {
+			Dungeon.hero.next();
+		}
 
 		switch (InterlevelScene.mode){
 			case FALL: case DESCEND: case CONTINUE:
@@ -764,6 +783,7 @@ public class GameScene extends PixelScene {
 			}
 			toolbar.visible = toolbar.active = false;
 			status.visible = status.active = false;
+			if (multiplayerPlayerList != null) multiplayerPlayerList.visible = multiplayerPlayerList.active = false;
 			if (inventory != null) inventory.visible = inventory.active = false;
 		}
 
@@ -946,7 +966,11 @@ public class GameScene extends PixelScene {
 	}
 
 	protected void saveGameOnPause() throws IOException {
-		Dungeon.saveAll("gameScenePause");
+		if (!WebMultiplayer.watcherSlot()) {
+			Dungeon.saveAll("gameScenePause");
+		} else if (webParityLogging()) {
+			webParityLog("onPause skipped watcher slot save");
+		}
 		Badges.saveGlobal();
 		Journal.saveGlobal();
 	}
@@ -994,6 +1018,12 @@ public class GameScene extends PixelScene {
 			return;
 		}
 
+		WebMultiplayer.update();
+		WebMultiplayer.showRoomOutcomeIfKnown();
+		syncMultiplayerChaseBanner();
+		syncPeerMirrors();
+		syncMultiplayerPlayerList();
+
 		super.update();
 
 		if (notifyDelay > 0) notifyDelay -= Game.elapsed;
@@ -1004,7 +1034,7 @@ public class GameScene extends PixelScene {
 			waterOfs = water.offsetY(); //re-assign to account for auto adjust
 		}
 
-		if (!Game.switchingScene() && !Actor.processing() && Dungeon.hero.isAlive()) {
+		if (!WebMultiplayer.watcherView() && !Game.switchingScene() && !Actor.processing() && Dungeon.hero.isAlive()) {
 			if (actorThread == null || !actorThread.isAlive()) {
 
 				actorThread = new Thread() {
@@ -1217,6 +1247,65 @@ public class GameScene extends PixelScene {
 		sortMobSprites();
 	}
 
+	synchronized void syncPeerMirrors() {
+		if (peerMirrors == null || mobs == null || Dungeon.level == null) {
+			return;
+		}
+
+		HashSet<String> active = new HashSet<>();
+		boolean resort = false;
+		for (WebMultiplayer.PeerMirrorState state : WebMultiplayer.peerMirrors()) {
+			active.add(state.playerId);
+			PeerMirrorSprite sprite = peerMirrors.get(state.playerId);
+			boolean shouldShow = shouldShowPeerMirror(state);
+			if (sprite == null) {
+				if (!shouldShow) {
+					continue;
+				}
+				sprite = createPeerMirrorSprite();
+				sprite.visible = false;
+				mobs.add(sprite);
+				peerMirrors.put(state.playerId, sprite);
+				resort = true;
+			}
+
+			int previousCell = sprite.cell();
+			sprite.appearance(state.heroClass, state.armorTier);
+			sprite.sync(state.cell, shouldShow);
+			sprite.peerBuffs(state.peerBuffs);
+			resort = resort || (shouldShow && previousCell != state.cell);
+		}
+
+		for (Map.Entry<String, PeerMirrorSprite> entry : new ArrayList<>(peerMirrors.entrySet())) {
+			if (!active.contains(entry.getKey())) {
+				entry.getValue().killAndErase();
+				peerMirrors.remove(entry.getKey());
+				resort = true;
+			}
+		}
+
+		if (resort) {
+			sortMobSprites();
+		}
+	}
+
+	protected PeerMirrorSprite createPeerMirrorSprite() {
+		return new PeerMirrorSprite();
+	}
+
+	static boolean shouldShowPeerMirror(WebMultiplayer.PeerMirrorState state) {
+		return !WebMultiplayer.watcherView()
+				&& state.connected
+				&& !state.gameOver
+				&& state.depth == Dungeon.depth
+				&& state.branch == Dungeon.branch
+				&& state.cell >= 0
+				&& state.cell < Dungeon.level.length()
+				&& Dungeon.level.heroFOV != null
+				&& state.cell < Dungeon.level.heroFOV.length
+				&& Dungeon.level.heroFOV[state.cell];
+	}
+
 	//ensures that mob sprites are drawn from top to bottom, in case of overlap
 	public static void sortMobSprites(){
 		if (scene != null){
@@ -1366,6 +1455,53 @@ public class GameScene extends PixelScene {
 
 		addToFront( banner );
 	}
+
+	private void syncMultiplayerChaseBanner() {
+		if (!WebMultiplayer.chaseActive()) {
+			if (chaseBanner != null) {
+				chaseBanner.killAndErase();
+				toDestroy.add(chaseBanner);
+				chaseBanner = null;
+			}
+			return;
+		}
+
+		String text = WebMultiplayer.chaseStatusText();
+		if (chaseBanner == null) {
+			chaseBanner = new MultiplayerChaseBanner(text);
+			chaseBanner.camera = uiCamera;
+			addToFront(chaseBanner);
+		} else {
+			chaseBanner.text(text);
+		}
+
+		RectF insets = Game.platform.getSafeInsets(PlatformSupport.INSET_ALL).scale(1f / uiCamera.zoom);
+		chaseBanner.setPos(
+				align(uiCamera, (uiCamera.width - chaseBanner.width()) / 2f),
+				align(uiCamera, insets.top + 14)
+		);
+	}
+
+	private void syncMultiplayerPlayerList() {
+		if (multiplayerPlayerList == null) {
+			return;
+		}
+		if (!WebMultiplayer.inRoom() || SPDSettings.intro()) {
+			multiplayerPlayerList.visible = multiplayerPlayerList.active = false;
+			return;
+		}
+		multiplayerPlayerList.active = true;
+
+		RectF insets = Game.platform.getSafeInsets(PlatformSupport.INSET_ALL).scale(1f / uiCamera.zoom);
+		float top = insets.top + 2;
+		if (SPDSettings.interfaceSize() == 0 && status != null) {
+			top = Math.max(top, status.bottom() + 2);
+		}
+		multiplayerPlayerList.setPos(
+				align(uiCamera, insets.left + 2),
+				align(uiCamera, top)
+		);
+	}
 	
 	// -------------------------------------------------------
 	
@@ -1481,6 +1617,9 @@ public class GameScene extends PixelScene {
 	}
 
 	public static void flashForDocument( Document doc, String page ){
+		if (doc == null || page == null || doc.isPageRead(page)){
+			return;
+		}
 		if (scene != null) {
 			if (doc == Document.ADVENTURERS_GUIDE){
 				if (!page.equals(Document.GUIDE_INTRO)) {
@@ -1689,6 +1828,56 @@ public class GameScene extends PixelScene {
 			scene.wallBlocking.updateArea( cell, radius );
 		}
 	}
+
+	public static boolean syncWatcherTargetCell(int cell) {
+		if (Dungeon.hero == null || (Dungeon.level != null && !isLevelCell(cell))) {
+			return false;
+		}
+
+		int previousCell = Dungeon.hero.pos;
+		Dungeon.hero.pos = cell;
+
+		if (Dungeon.hero.sprite != null) {
+			if (previousCell >= 0 && previousCell != cell
+					&& Dungeon.level != null && Dungeon.level.adjacent(previousCell, cell)) {
+				Dungeon.hero.sprite.move(previousCell, cell);
+			} else {
+				Dungeon.hero.sprite.interruptMotion();
+				Dungeon.hero.sprite.place(cell);
+			}
+			Dungeon.hero.sprite.idle();
+			if (Camera.main != null) {
+				Camera.main.panTo(Dungeon.hero.sprite.center(), 2.5f);
+			}
+		}
+
+		if (Dungeon.level != null && Dungeon.level.heroFOV != null && Dungeon.level.visited != null) {
+			Dungeon.observe();
+		}
+
+		return true;
+	}
+
+	public static boolean syncWatcherMobKilled(int cell) {
+		if (Dungeon.level == null || !isLevelCell(cell)) {
+			return false;
+		}
+
+		Char ch = Actor.findChar(cell);
+		if (!(ch instanceof Mob)) {
+			return true;
+		}
+
+		Mob mob = (Mob)ch;
+		mob.HP = 0;
+		Dungeon.level.mobs.remove(mob);
+		Actor.remove(mob);
+		if (mob.sprite != null) {
+			mob.sprite.killAndErase();
+		}
+		sortMobSprites();
+		return true;
+	}
 	
 	public static void afterObserve() {
 		if (scene != null) {
@@ -1736,39 +1925,55 @@ public class GameScene extends PixelScene {
 	public static void gameOver() {
 		if (scene == null) return;
 
+		boolean multiplayerGameOver = WebMultiplayer.onLocalGameOver();
+		boolean continueToWatch = WebMultiplayer.canContinueToWatch();
 		Banner gameOver = new Banner( BannerSprites.get( BannerSprites.Type.GAME_OVER ) );
 		gameOver.show( 0x000000, 2f );
 		scene.showBanner( gameOver );
 
-		StyledButton restart = new StyledButton(Chrome.Type.GREY_BUTTON_TR, Messages.get(StartScene.class, "new"), 9){
-			@Override
-			protected void onClick() {
-				GamesInProgress.selectedClass = Dungeon.hero.heroClass;
-				GamesInProgress.curSlot = GamesInProgress.firstEmpty();
-				ShatteredPixelDungeon.switchScene(HeroSelectScene.class);
-			}
-
-			@Override
-			public void update() {
-				alpha((float)Math.pow(gameOver.am, 2));
-				super.update();
-			}
-		};
-		restart.icon(Icons.get(Icons.ENTER));
-		restart.alpha(0);
-		restart.camera = uiCamera;
 		float offset = Camera.main.centerOffset.y;
-		restart.setSize(Math.max(80, restart.reqWidth()), 20);
-		restart.setPos(
-				align(uiCamera, (restart.camera.width - restart.width()) / 2),
-				align(uiCamera, (restart.camera.height - restart.height()) / 2 + 8 - offset)
-		);
-		scene.add(restart);
+		float firstButtonY = align(uiCamera, (uiCamera.height - 20) / 2 + 8 - offset);
+		StyledButton primary = null;
+		if (!multiplayerGameOver || continueToWatch) {
+			primary = new StyledButton(Chrome.Type.GREY_BUTTON_TR,
+					continueToWatch ? Messages.get(WndGame.class, "continue_watch") : Messages.get(StartScene.class, "new"), 9){
+				@Override
+				protected void onClick() {
+					if (continueToWatch) {
+						WebMultiplayer.continueToWatch();
+					} else {
+						GamesInProgress.selectedClass = Dungeon.hero.heroClass;
+						GamesInProgress.curSlot = GamesInProgress.firstEmpty();
+						ShatteredPixelDungeon.switchScene(HeroSelectScene.class);
+					}
+				}
 
-		StyledButton menu = new StyledButton(Chrome.Type.GREY_BUTTON_TR, Messages.get(WndKeyBindings.class, "menu"), 9){
+				@Override
+				public void update() {
+					alpha((float)Math.pow(gameOver.am, 2));
+					super.update();
+				}
+			};
+			primary.icon(Icons.get(Icons.ENTER));
+			primary.alpha(0);
+			primary.camera = uiCamera;
+			primary.setSize(Math.max(80, primary.reqWidth()), 20);
+			primary.setPos(
+					align(uiCamera, (primary.camera.width - primary.width()) / 2),
+					firstButtonY
+			);
+			scene.add(primary);
+		}
+
+		StyledButton menu = new StyledButton(Chrome.Type.GREY_BUTTON_TR,
+				multiplayerGameOver ? Messages.get(WndGame.class, "menu") : Messages.get(WndKeyBindings.class, "menu"), 9){
 			@Override
 			protected void onClick() {
-				GameScene.show(new WndGame());
+				if (multiplayerGameOver) {
+					WndGame.returnToMainMenu();
+				} else {
+					GameScene.show(new WndGame());
+				}
 			}
 
 			@Override
@@ -1783,7 +1988,7 @@ public class GameScene extends PixelScene {
 		menu.setSize(Math.max(80, menu.reqWidth()), 20);
 		menu.setPos(
 				align(uiCamera, (menu.camera.width - menu.width()) / 2),
-				restart.bottom() + 2
+				primary == null ? firstButtonY : primary.bottom() + 2
 		);
 		scene.add(menu);
 	}
@@ -1799,10 +2004,17 @@ public class GameScene extends PixelScene {
 	}
 	
 	public static void handleCell( int cell ) {
+		if (WebMultiplayer.watcherView()) {
+			examineCell(cell);
+			return;
+		}
 		cellSelector.select( cell, PointerEvent.LEFT );
 	}
 	
 	public static void selectCell( CellSelector.Listener listener ) {
+		if (WebMultiplayer.watcherView() && listener != defaultCellListener) {
+			listener = defaultCellListener;
+		}
 		if (cellSelector.listener != null && cellSelector.listener != defaultCellListener){
 			cellSelector.listener.onSelect(null);
 		}
@@ -1903,6 +2115,10 @@ public class GameScene extends PixelScene {
 			updateTags = true;
 		}
 	}
+
+	public static boolean watcherView() {
+		return WebMultiplayer.watcherView();
+	}
 	
 	public static void checkKeyHold(){
 		cellSelector.processKeyHold();
@@ -1939,7 +2155,7 @@ public class GameScene extends PixelScene {
 		}
 	}
 
-	private static ArrayList<Object> getObjectsAtCell( int cell ){
+	static ArrayList<Object> getObjectsAtCell( int cell ){
 		ArrayList<Object> objects = new ArrayList<>();
 
 		if (cell == Dungeon.hero.pos) {
@@ -2001,6 +2217,10 @@ public class GameScene extends PixelScene {
 	private static final CellSelector.Listener defaultCellListener = new CellSelector.Listener() {
 		@Override
 		public void onSelect( Integer cell ) {
+			if (WebMultiplayer.watcherView()) {
+				examineCell(cell);
+				return;
+			}
 			if (Dungeon.hero.handle( cell )) {
 				Dungeon.hero.next();
 			}

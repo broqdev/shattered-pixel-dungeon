@@ -19,27 +19,24 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
 
-package com.shatteredpixel.shatteredpixeldungeon.scenes;
+package com.shatteredpixel.shatteredpixeldungeon;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
-import static org.junit.Assert.assertTrue;
-
-public class WelcomeSceneIntroRoutingTest {
+public class GamesInProgressWatcherSlotTest {
 
 	@Test
-	public void introRoutesToTitleWhenExistingSaveIsPresent() {
-		assertTrue(WelcomeScene.shouldRouteIntroToTitle(1, 2, 0));
-	}
-
-	@Test
-	public void introRoutesToTitleForFirstRunWithEmptySlot() {
-		assertTrue(WelcomeScene.shouldRouteIntroToTitle(0, 1, 0));
-	}
-
-	@Test
-	public void introRoutesToTitleWhenSlotsAreFullOrRankingsExist() {
-		assertTrue(WelcomeScene.shouldRouteIntroToTitle(0, -1, 0));
-		assertTrue(WelcomeScene.shouldRouteIntroToTitle(0, 1, 1));
+	public void watcherSlotUsesNonPlayableGameZeroFiles() {
+		assertEquals(0, GamesInProgress.WATCHER_SLOT);
+		assertTrue(GamesInProgress.isWatcherSlot(GamesInProgress.WATCHER_SLOT));
+		assertFalse(GamesInProgress.isWatcherSlot(1));
+		assertEquals("game0", GamesInProgress.gameFolder(GamesInProgress.WATCHER_SLOT));
+		assertEquals("game0/game.dat", GamesInProgress.gameFile(GamesInProgress.WATCHER_SLOT));
+		assertEquals("game0/depth1.dat", GamesInProgress.depthFile(GamesInProgress.WATCHER_SLOT, 1, 0));
+		assertEquals("game0/depth1-branch1.dat", GamesInProgress.depthFile(GamesInProgress.WATCHER_SLOT, 1, 1));
 	}
 }

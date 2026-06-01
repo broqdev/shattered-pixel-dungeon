@@ -160,6 +160,7 @@ import com.shatteredpixel.shatteredpixeldungeon.levels.traps.Trap;
 import com.shatteredpixel.shatteredpixeldungeon.mechanics.Ballistica;
 import com.shatteredpixel.shatteredpixeldungeon.mechanics.ShadowCaster;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
+import com.shatteredpixel.shatteredpixeldungeon.multiplayer.WebMultiplayer;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.AlchemyScene;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.PixelScene;
@@ -812,6 +813,7 @@ public class Hero extends Char {
 
 	@Override
 	public void spendConstant(float time) {
+		WebMultiplayer.recordHeroTime(time);
 		super.spendConstant(time);
 	}
 
@@ -1111,9 +1113,11 @@ public class Hero extends Char {
 							GLog.i( Messages.capitalize(Messages.get(this, "you_now_have", item.name())) );
 						}
 					}
+
+					WebMultiplayer.publishReplayEvent("item", pos, "Watch Target picked up " + item.name() + ".");
 					
-					curAction = null;
-				} else {
+				curAction = null;
+			} else {
 
 					if (waitOrPickup) {
 						spendAndNextConstant(TIME_TO_REST);
@@ -1465,6 +1469,7 @@ public class Hero extends Char {
 			if (sprite != null) {
 				sprite.showStatus(CharSprite.DEFAULT, Messages.get(this, "wait"));
 			}
+			WebMultiplayer.publishReplayEvent("wait", pos, "Watch Target waited.");
 		}
 		resting = fullRest;
 	}
@@ -1876,6 +1881,10 @@ public class Hero extends Char {
 	
 	public boolean handle( int cell ) {
 		
+		if (WebMultiplayer.watcherView()) {
+			return false;
+		}
+
 		if (cell == -1) {
 			return false;
 		}
@@ -1947,12 +1956,13 @@ public class Hero extends Char {
 			
 		} else if (Dungeon.level.getTransition(cell) != null
 				//moving to a transition doesn't automatically trigger it when enemies are near
-				&& (visibleEnemies.size() == 0 || cell == pos)
-				&& !Dungeon.level.locked
-				&& !Dungeon.level.plants.containsKey(cell)
-				&& (Dungeon.depth < 26 || Dungeon.level.getTransition(cell).type == LevelTransition.Type.REGULAR_ENTRANCE) ) {
+					&& (visibleEnemies.size() == 0 || cell == pos)
+					&& !Dungeon.level.locked
+					&& !Dungeon.level.plants.containsKey(cell)
+					&& (Dungeon.depth < 26 || LevelTransition.matches(Dungeon.level.getTransition(cell).type,
+							LevelTransition.Type.REGULAR_ENTRANCE)) ) {
 
-			curAction = new HeroAction.LvlTransition( cell );
+				curAction = new HeroAction.LvlTransition( cell );
 			
 		}  else {
 			
@@ -2284,9 +2294,13 @@ public class Hero extends Char {
 
 	@Override
 	public void move(int step, boolean travelling) {
+		int from = pos;
 		boolean wasHighGrass = Dungeon.level.map[step] == Terrain.HIGH_GRASS;
 
 		super.move( step, travelling);
+		if (travelling && from != pos) {
+			WebMultiplayer.publishReplayEvent("move", pos, "Watch Target moved.");
+		}
 		
 		if (!flying && travelling) {
 			if (Dungeon.level.water[pos]) {
@@ -2324,6 +2338,8 @@ public class Hero extends Char {
 		
 		Invisibility.dispel();
 		spend( attackDelay() );
+		WebMultiplayer.publishReplayEvent("attack", attackTarget.pos,
+				hit ? "Watch Target attacked." : "Watch Target missed an attack.");
 
 		if (hit && subClass == HeroSubClass.GLADIATOR && wasEnemy){
 			Buff.affect( this, Combo.class ).hit(attackTarget);
@@ -2351,6 +2367,8 @@ public class Hero extends Char {
 
 			int doorCell = ((HeroAction.Unlock)curAction).dst;
 			int door = Dungeon.level.map[doorCell];
+			int replayCell = doorCell;
+			boolean replayInteract = false;
 
 			SkeletonKey.keyRecharge skele = buff(SkeletonKey.keyRecharge.class);
 			SkeletonKey.KeyReplacementTracker keyUseTrack = buff(SkeletonKey.KeyReplacementTracker.class);
@@ -2394,12 +2412,19 @@ public class Hero extends Char {
 					GameScene.updateKeyDisplay();
 					GameScene.updateMap(doorCell);
 					spend(Key.TIME_TO_UNLOCK);
+					replayInteract = true;
 				}
+			}
+
+			if (replayInteract) {
+				WebMultiplayer.publishReplayEvent("interact", replayCell, "Watch Target unlocked something.");
 			}
 			
 		} else if (curAction instanceof HeroAction.OpenChest) {
 			
 			Heap heap = Dungeon.level.heaps.get( ((HeroAction.OpenChest)curAction).dst );
+			int replayCell = heap == null ? pos : heap.pos;
+			boolean replayInteract = false;
 			SkeletonKey.keyRecharge skele = buff(SkeletonKey.keyRecharge.class);
 			SkeletonKey.KeyReplacementTracker keyUseTrack = buff(SkeletonKey.KeyReplacementTracker.class);
 
@@ -2429,7 +2454,12 @@ public class Hero extends Char {
 					GameScene.updateKeyDisplay();
 					heap.open(this);
 					spend(Key.TIME_TO_UNLOCK);
+					replayInteract = true;
 				}
+			}
+
+			if (replayInteract) {
+				WebMultiplayer.publishReplayEvent("interact", replayCell, "Watch Target opened a container.");
 			}
 			
 		}
@@ -2586,6 +2616,11 @@ public class Hero extends Char {
 
 		if (talisman != null){
 			talisman.checkAwareness();
+		}
+
+		if (intentional) {
+			WebMultiplayer.publishReplayEvent("search", pos,
+					smthFound ? "Watch Target searched and found something." : "Watch Target searched.");
 		}
 		
 		return smthFound;

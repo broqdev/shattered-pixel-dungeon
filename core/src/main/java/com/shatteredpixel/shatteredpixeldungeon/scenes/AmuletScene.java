@@ -31,6 +31,7 @@ import com.shatteredpixel.shatteredpixeldungeon.effects.Flare;
 import com.shatteredpixel.shatteredpixeldungeon.effects.Speck;
 import com.shatteredpixel.shatteredpixeldungeon.items.Amulet;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
+import com.shatteredpixel.shatteredpixeldungeon.multiplayer.WebMultiplayer;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.ItemSprite;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.ItemSpriteSheet;
 import com.shatteredpixel.shatteredpixeldungeon.ui.Icons;
@@ -78,6 +79,14 @@ public class AmuletScene extends PixelScene {
 		btnExit = new StyledButton(Chrome.Type.GREY_BUTTON_TR, Messages.get(this, "exit") ) {
 			@Override
 			protected void onClick() {
+				boolean multiplayerVictory = WebMultiplayer.claimLocalVictory("amulet")
+						|| (WebMultiplayer.inRoom() && WebMultiplayer.roomWinnerKnown());
+				if (multiplayerVictory) {
+					btnExit.enable(false);
+					btnStay.enable(false);
+					Game.switchScene(GameScene.class);
+					return;
+				}
 				Dungeon.win( Amulet.class );
 				Dungeon.deleteGame( GamesInProgress.curSlot, true );
 				Badges.saveGlobal();

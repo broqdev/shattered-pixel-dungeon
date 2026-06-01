@@ -28,14 +28,23 @@ import com.shatteredpixel.shatteredpixeldungeon.ui.RedButton;
 import com.shatteredpixel.shatteredpixeldungeon.ui.RenderedTextBlock;
 import com.shatteredpixel.shatteredpixeldungeon.ui.Window;
 import com.watabou.noosa.Image;
+import com.watabou.utils.DeviceCompat;
+
+import java.util.ArrayList;
+import java.util.logging.Logger;
 
 public class WndOptions extends Window {
+
+	private static final Logger LOG = Logger.getLogger(WndOptions.class.getName());
 
 	protected static final int WIDTH_P = 120;
 	protected static final int WIDTH_L = 144;
 
 	protected static final int MARGIN 		= 2;
 	protected static final int BUTTON_HEIGHT	= 18;
+
+	protected final ArrayList<RedButton> optionButtons = new ArrayList<>();
+	protected RenderedTextBlock messageText;
 
 	public WndOptions(Image icon, String title, String message, String... options) {
 		super();
@@ -75,20 +84,23 @@ public class WndOptions extends Window {
 
 	protected void layoutBody(float pos, String message, String... options){
 		int width = PixelScene.landscape() ? WIDTH_L : WIDTH_P;
+		optionButtons.clear();
 
-		RenderedTextBlock tfMesage = PixelScene.renderTextBlock( 6 );
-		tfMesage.text(message, width);
-		tfMesage.setPos( 0, pos );
-		add( tfMesage );
+		messageText = PixelScene.renderTextBlock( 6 );
+		messageText.text(message, width);
+		messageText.setPos( 0, pos );
+		add( messageText );
 
-		pos = tfMesage.bottom() + 2*MARGIN;
+		pos = messageText.bottom() + 2*MARGIN;
 
 		for (int i=0; i < options.length; i++) {
 			final int index = i;
 			RedButton btn = new RedButton( options[i] ) {
 				@Override
 				protected void onClick() {
-					hide();
+					if (hideOnSelect(index)) {
+						hide();
+					}
 					onSelect( index );
 				}
 			};
@@ -111,14 +123,22 @@ public class WndOptions extends Window {
 			}
 
 			btn.enable(enabled(i));
+			optionButtons.add(btn);
 
 			pos += BUTTON_HEIGHT + MARGIN;
 		}
 
 		resize( width, (int)(pos - MARGIN) );
+		for (int i = 0; i < optionButtons.size(); i++) {
+			logOptionBounds(i, options[i], optionButtons.get(i));
+		}
 	}
 
 	protected boolean enabled( int index ){
+		return true;
+	}
+
+	protected boolean hideOnSelect( int index ){
 		return true;
 	}
 	
@@ -136,5 +156,20 @@ public class WndOptions extends Window {
 
 	protected Image getIcon( int index ) {
 		return null;
+	}
+
+	private void logOptionBounds(int index, String label, RedButton button) {
+		if (DeviceCompat.webParityLoggingEnabled() && button != null && camera != null) {
+			float globalX = camera.x / camera.zoom + button.left();
+			float globalY = camera.y / camera.zoom + button.top();
+			LOG.info("[WEB-PARITY] wnd options option bounds index=" + index
+					+ " label=" + label
+					+ " x=" + globalX
+					+ " y=" + globalY
+					+ " width=" + button.width()
+					+ " height=" + button.height()
+					+ " centerX=" + (globalX + button.width() / 2f)
+					+ " centerY=" + (globalY + button.height() / 2f));
+		}
 	}
 }

@@ -26,6 +26,8 @@ import com.watabou.utils.Bundle;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class LevelTransitionRestoreTest {
 
@@ -48,6 +50,15 @@ public class LevelTransitionRestoreTest {
 				LevelTransition.Type.BRANCH_EXIT);
 
 		assertEquals(LevelTransition.Type.BRANCH_EXIT, transition.destType);
+	}
+
+	@Test
+	public void typePredicatesUseSharedMatcher() {
+		assertTrue(LevelTransition.matches(LevelTransition.Type.REGULAR_EXIT, LevelTransition.Type.REGULAR_EXIT));
+		assertTrue(LevelTransition.isExit(LevelTransition.Type.REGULAR_EXIT));
+		assertTrue(LevelTransition.isEntrance(LevelTransition.Type.SURFACE));
+		assertFalse(LevelTransition.matches(LevelTransition.Type.REGULAR_EXIT, LevelTransition.Type.REGULAR_ENTRANCE));
+		assertFalse(LevelTransition.isExit(LevelTransition.Type.REGULAR_ENTRANCE));
 	}
 
 	private static void assertRestoresDefault(LevelTransition.Type type, LevelTransition.Type expectedDestType) {

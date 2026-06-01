@@ -82,9 +82,6 @@ public class BuildWeb {
 		Path index = new File(new File(outputDir, "webapp"), "index.html").toPath();
 		try {
 			String html = Files.readString(index, StandardCharsets.UTF_8);
-			if (!html.contains(WEB_PARITY_LOGGING_PLACEHOLDER)) {
-				throw new IllegalStateException("Missing " + WEB_PARITY_LOGGING_PLACEHOLDER + " in " + index);
-			}
 			Files.writeString(index, configureWebParityLogging(html, enabled), StandardCharsets.UTF_8);
 		} catch (IOException e) {
 			throw new RuntimeException("Unable to configure web parity logging in " + index, e);
@@ -93,12 +90,29 @@ public class BuildWeb {
 
 	static String configureWebParityLogging(String html, boolean enabled) {
 		if (enabled) {
-			return html.replace(WEB_PARITY_LOGGING_PLACEHOLDER, "true");
+			if (html.contains(WEB_PARITY_LOGGING_PLACEHOLDER)) {
+				return html.replace(WEB_PARITY_LOGGING_PLACEHOLDER, "true");
+			}
+			if (html.contains("const WEB_PARITY_LOGGING_ENABLED = \"true\" === \"true\";")) {
+				return html;
+			}
+			if (html.contains("const WEB_PARITY_LOGGING_ENABLED = \"false\" === \"true\";")) {
+				return html.replace(
+						"const WEB_PARITY_LOGGING_ENABLED = \"false\" === \"true\";",
+						"const WEB_PARITY_LOGGING_ENABLED = \"true\" === \"true\";");
+			}
+			throw new IllegalStateException("Missing " + WEB_PARITY_LOGGING_PLACEHOLDER
+					+ " or configured web parity logging block");
 		}
 
 		int begin = html.indexOf(WEB_PARITY_LOGGING_BEGIN);
 		int end = html.indexOf(WEB_PARITY_LOGGING_END);
 		if (begin < 0 || end < begin) {
+			if (html.contains("window.__shpdWebParityLogging = false;\n"
+					+ "            function logWebParity() {\n"
+					+ "            }")) {
+				return html;
+			}
 			throw new IllegalStateException("Missing web parity logging block markers");
 		}
 		end += WEB_PARITY_LOGGING_END.length();

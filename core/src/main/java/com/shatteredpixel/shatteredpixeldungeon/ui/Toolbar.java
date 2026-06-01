@@ -108,6 +108,9 @@ public class Toolbar extends Component {
 		add(new Button(){
 			@Override
 			protected void onClick() {
+				if (GameScene.watcherView()) {
+					return;
+				}
 				if (QuickSlotButton.targetingSlot != -1){
 					int cell = QuickSlotButton.autoAim(QuickSlotButton.lastTarget, Dungeon.quickslot.getItem(QuickSlotButton.targetingSlot));
 
@@ -199,7 +202,7 @@ public class Toolbar extends Component {
 		add(btnWait = new Tool(24, 0, 20, 26) {
 			@Override
 			protected void onClick() {
-				if (Dungeon.hero != null &&  Dungeon.hero.ready && !GameScene.cancel()) {
+				if (!GameScene.watcherView() && Dungeon.hero != null &&  Dungeon.hero.ready && !GameScene.cancel()) {
 					examining = false;
 					Dungeon.hero.rest(false);
 				}
@@ -221,7 +224,7 @@ public class Toolbar extends Component {
 			}
 
 			protected boolean onLongClick() {
-				if (Dungeon.hero != null && Dungeon.hero.ready && !GameScene.cancel()) {
+				if (!GameScene.watcherView() && Dungeon.hero != null && Dungeon.hero.ready && !GameScene.cancel()) {
 					examining = false;
 					Dungeon.hero.rest(true);
 				}
@@ -234,7 +237,7 @@ public class Toolbar extends Component {
 		add(new Button(){
 			@Override
 			protected void onClick() {
-				if (Dungeon.hero != null && Dungeon.hero.ready && !GameScene.cancel()) {
+				if (!GameScene.watcherView() && Dungeon.hero != null && Dungeon.hero.ready && !GameScene.cancel()) {
 					examining = false;
 					Dungeon.hero.rest(true);
 				}
@@ -251,7 +254,7 @@ public class Toolbar extends Component {
 		add(new Button(){
 			@Override
 			protected void onClick() {
-				if (Dungeon.hero != null && Dungeon.hero.ready && !GameScene.cancel()) {
+				if (!GameScene.watcherView() && Dungeon.hero != null && Dungeon.hero.ready && !GameScene.cancel()) {
 					Dungeon.hero.waitOrPickup = true;
 					if ((Dungeon.level.heaps.get(Dungeon.hero.pos) != null || Dungeon.hero.canSelfTrample())
 						&& Dungeon.hero.handle(Dungeon.hero.pos)){
@@ -271,7 +274,7 @@ public class Toolbar extends Component {
 			}
 
 			protected boolean onLongClick() {
-				if (Dungeon.hero != null && Dungeon.hero.ready && !GameScene.cancel()) {
+				if (!GameScene.watcherView() && Dungeon.hero != null && Dungeon.hero.ready && !GameScene.cancel()) {
 					examining = false;
 					Dungeon.hero.rest(true);
 				}
@@ -292,7 +295,7 @@ public class Toolbar extends Component {
 					if (!examining && !GameScene.cancel()) {
 						GameScene.selectCell(informer);
 						examining = true;
-					} else if (examining) {
+					} else if (examining && !GameScene.watcherView()) {
 						informer.onSelect(null);
 						Dungeon.hero.search(true);
 					}
@@ -311,6 +314,9 @@ public class Toolbar extends Component {
 			
 			@Override
 			protected boolean onLongClick() {
+				if (GameScene.watcherView()) {
+					return true;
+				}
 				Dungeon.hero.search(true);
 				return true;
 			}

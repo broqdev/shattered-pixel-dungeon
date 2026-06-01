@@ -23,11 +23,14 @@ package com.watabou.noosa;
 
 import com.badlogic.gdx.Files;
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
 import com.badlogic.gdx.graphics.Mesh;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.scenes.scene2d.Actor;
+import com.badlogic.gdx.scenes.scene2d.InputEvent;
+import com.badlogic.gdx.scenes.scene2d.InputListener;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.Container;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
@@ -36,6 +39,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.viewport.Viewport;
+import com.watabou.input.PointerEvent;
 import com.watabou.glscripts.Script;
 import com.watabou.glwrap.Blending;
 import com.watabou.glwrap.Quad;
@@ -48,16 +52,28 @@ import com.watabou.utils.Point;
 //essentially contains a libGDX text input field, plus a PD-rendered background
 public class TextInput extends Component {
 
+	private static TextInput activeInput;
+
 	private Stage stage;
 	private Container container;
 	private TextField textField;
+	private final boolean multiline;
+	private boolean inputProcessorRegistered;
 
 	private Skin skin;
 
 	private NinePatch bg;
 
+	public static void clearActiveInput(){
+		if (activeInput != null) {
+			activeInput.deactivate(true);
+			activeInput = null;
+		}
+	}
+
 	public TextInput( NinePatch bg, boolean multiline, int size ){
 		super();
+		this.multiline = multiline;
 		this.bg = bg;
 		add(bg);
 
@@ -70,7 +86,7 @@ public class TextInput extends Component {
 		//  This results in HARD crashes atm, whereas old vertex arrays work fine
 		SpriteBatch.overrideVertexType = Mesh.VertexDataType.VertexArray;
 		stage = new Stage(viewport);
-		Game.inputHandler.addInputProcessor(stage);
+		registerInputProcessor();
 
 		container = new Container<TextField>();
 		stage.addActor(container);
@@ -81,36 +97,9 @@ public class TextInput extends Component {
 		TextField.TextFieldStyle style = skin.get(TextField.TextFieldStyle.class);
 		style.font = Game.platform.getFont(size, "", false, false);
 		style.background = null;
-		if (multiline){
-			textField = new TextArea("", style){
-				@Override
-				public void cut() {
-					super.cut();
-					onClipBoardUpdate();
-				}
-
-				@Override
-				public void copy() {
-					super.copy();
-					onClipBoardUpdate();
-				}
-			};
-		} else {
-			textField = new TextField("", style){
-				@Override
-				public void cut() {
-					super.cut();
-					onClipBoardUpdate();
-				}
-
-				@Override
-				public void copy() {
-					super.copy();
-					onClipBoardUpdate();
-				}
-			};
-		}
+		textField = multiline ? new FocusedTextArea(style) : new FocusedTextField(style);
 		textField.setProgrammaticChangeEvents(true);
+		textField.setFocusTraversal(false);
 
 		if (!multiline) textField.setAlignment(Align.center);
 
@@ -144,15 +133,116 @@ public class TextInput extends Component {
 				Game.platform.setOnscreenKeyboardVisible(visible, multiline);
 			}
 		});
-
 		container.setActor(textField);
-		stage.setKeyboardFocus(textField);
-		Game.platform.setOnscreenKeyboardVisible(true, multiline);
+	}
+
+	private class FocusedTextArea extends TextArea {
+
+		private FocusedTextArea(TextField.TextFieldStyle style) {
+			super("", style);
+		}
+
+		@Override
+		public void cut() {
+			super.cut();
+			onClipBoardUpdate();
+		}
+
+		@Override
+		public void copy() {
+			super.copy();
+			onClipBoardUpdate();
+		}
+
+		@Override
+		protected InputListener createInputListener() {
+			return new FocusedTextAreaClickListener();
+		}
+
+		private class FocusedTextAreaClickListener extends TextFieldClickListener {
+
+			@Override
+			public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
+				PointerEvent.clearKeyboardThisPress = false;
+				focus();
+				return super.touchDown(event, x, y, pointer, button);
+			}
+
+			@Override
+			public void touchUp(InputEvent event, float x, float y, int pointer, int button) {
+				PointerEvent.clearKeyboardThisPress = false;
+				focus();
+				super.touchUp(event, x, y, pointer, button);
+			}
+
+			@Override
+			public boolean keyDown(InputEvent event, int keycode) {
+				if (keycode == Input.Keys.TAB) {
+					tabPressed(tabBackwardsPressed());
+					return true;
+				}
+				return super.keyDown(event, keycode);
+			}
+		}
+	}
+
+	private class FocusedTextField extends TextField {
+
+		private FocusedTextField(TextField.TextFieldStyle style) {
+			super("", style);
+		}
+
+		@Override
+		public void cut() {
+			super.cut();
+			onClipBoardUpdate();
+		}
+
+		@Override
+		public void copy() {
+			super.copy();
+			onClipBoardUpdate();
+		}
+
+		@Override
+		protected InputListener createInputListener() {
+			return new FocusedTextFieldClickListener();
+		}
+
+		private class FocusedTextFieldClickListener extends TextFieldClickListener {
+
+			@Override
+			public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
+				PointerEvent.clearKeyboardThisPress = false;
+				focus();
+				return super.touchDown(event, x, y, pointer, button);
+			}
+
+			@Override
+			public void touchUp(InputEvent event, float x, float y, int pointer, int button) {
+				PointerEvent.clearKeyboardThisPress = false;
+				focus();
+				super.touchUp(event, x, y, pointer, button);
+			}
+
+			@Override
+			public boolean keyDown(InputEvent event, int keycode) {
+				if (keycode == Input.Keys.TAB) {
+					tabPressed(tabBackwardsPressed());
+					return true;
+				}
+				return super.keyDown(event, keycode);
+			}
+		}
 	}
 
 	public void enterPressed(){
 		//fires any time enter is pressed, do nothing by default
 	};
+
+	public void tabPressed(boolean backwards){
+		//fires any time tab is pressed in a single-line input, do nothing by default
+	}
 
 	public void onChanged(){
 		//fires any time the text box is changed, do nothing by default
@@ -169,6 +259,11 @@ public class TextInput extends Component {
 
 	public void setMaxLength(int maxLength){
 		textField.setMaxLength(maxLength);
+	}
+
+	public void setPasswordMask(char passwordCharacter){
+		textField.setPasswordCharacter(passwordCharacter);
+		textField.setPasswordMode(true);
 	}
 
 	public String getText(){
@@ -198,6 +293,49 @@ public class TextInput extends Component {
 
 		textField.setText(existing.substring(0, cursorIdx) + contents + existing.substring(cursorIdx));
 		textField.setCursorPosition(cursorIdx + contents.length());
+	}
+
+	public void focus(){
+		if (stage != null && textField != null) {
+			if (activeInput != this && activeInput != null) {
+				activeInput.deactivate(false);
+			}
+			activeInput = this;
+			registerInputProcessor();
+			stage.setKeyboardFocus(textField);
+			Game.platform.setOnscreenKeyboardVisible(true, multiline);
+		}
+	}
+
+	private boolean tabBackwardsPressed() {
+		return Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT)
+				|| Gdx.input.isKeyPressed(Input.Keys.SHIFT_RIGHT);
+	}
+
+	private void registerInputProcessor() {
+		if (stage == null) {
+			return;
+		}
+		if (!inputProcessorRegistered) {
+			Game.inputHandler.addInputProcessor(stage);
+			inputProcessorRegistered = true;
+		}
+	}
+
+	private void unregisterInputProcessor() {
+		if (stage != null && inputProcessorRegistered) {
+			Game.inputHandler.removeInputProcessor(stage);
+		}
+		inputProcessorRegistered = false;
+	}
+
+	private void deactivate(boolean hideKeyboard) {
+		if (stage != null) {
+			stage.setKeyboardFocus(null);
+		}
+		if (hideKeyboard) {
+			Game.platform.setOnscreenKeyboardVisible(false, false);
+		}
 	}
 
 	@Override
@@ -255,10 +393,21 @@ public class TextInput extends Component {
 	public synchronized void destroy() {
 		super.destroy();
 		if (stage != null) {
+			boolean wasActive = activeInput == this;
+			if (wasActive) {
+				deactivate(true);
+				activeInput = null;
+			}
+			unregisterInputProcessor();
+			if (DeviceCompat.isWeb()) {
+				stage = null;
+				skin = null;
+				return;
+			}
 			stage.dispose();
 			skin.dispose();
-			Game.inputHandler.removeInputProcessor(stage);
-			Game.platform.setOnscreenKeyboardVisible(false, false);
+			stage = null;
+			skin = null;
 			if (!DeviceCompat.isDesktop()) Game.platform.updateSystemUI();
 		}
 	}

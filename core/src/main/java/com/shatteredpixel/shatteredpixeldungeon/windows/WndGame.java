@@ -26,6 +26,7 @@ import com.shatteredpixel.shatteredpixeldungeon.GamesInProgress;
 import com.shatteredpixel.shatteredpixeldungeon.SPDSettings;
 import com.shatteredpixel.shatteredpixeldungeon.ShatteredPixelDungeon;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
+import com.shatteredpixel.shatteredpixeldungeon.multiplayer.WebMultiplayer;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.HeroSelectScene;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.InterlevelScene;
@@ -50,19 +51,23 @@ public class WndGame extends Window {
 		
 		super();
 
+		boolean multiplayerGameOver = WebMultiplayer.multiplayerGameOverMenu();
+
 		//settings
 		RedButton curBtn;
-		addButton( curBtn = new RedButton( Messages.get(this, "settings") ) {
-			@Override
-			protected void onClick() {
-				hide();
-				GameScene.show(new WndSettings());
-			}
-		});
-		curBtn.icon(Icons.get(Icons.PREFS));
+		if (!multiplayerGameOver) {
+			addButton( curBtn = new RedButton( Messages.get(this, "settings") ) {
+				@Override
+				protected void onClick() {
+					hide();
+					GameScene.show(new WndSettings());
+				}
+			});
+			curBtn.icon(Icons.get(Icons.PREFS));
+		}
 
 		// Challenges window
-		if (Dungeon.challenges > 0) {
+		if (!multiplayerGameOver && Dungeon.challenges > 0) {
 			addButton( curBtn = new RedButton( Messages.get(this, "challenges") ) {
 				@Override
 				protected void onClick() {
@@ -76,43 +81,62 @@ public class WndGame extends Window {
 		// Restart
 		if (Dungeon.hero == null || !Dungeon.hero.isAlive()) {
 
-			addButton( curBtn = new RedButton( Messages.get(this, "start") ) {
-				@Override
-				protected void onClick() {
-					GamesInProgress.selectedClass = Dungeon.hero.heroClass;
-					GamesInProgress.curSlot = GamesInProgress.firstEmpty();
-					ShatteredPixelDungeon.switchScene(HeroSelectScene.class);
+			if (multiplayerGameOver) {
+				if (WebMultiplayer.canContinueToWatch()) {
+					addButton( curBtn = new RedButton( Messages.get(this, "continue_watch") ) {
+						@Override
+						protected void onClick() {
+							hide();
+							WebMultiplayer.continueToWatch();
+						}
+					} );
+					curBtn.icon(Icons.get(Icons.ENTER));
+					curBtn.textColor(Window.TITLE_COLOR);
 				}
-			} );
-			curBtn.icon(Icons.get(Icons.ENTER));
-			curBtn.textColor(Window.TITLE_COLOR);
-			
-			addButton( curBtn = new RedButton( Messages.get(this, "rankings") ) {
-				@Override
-				protected void onClick() {
-					InterlevelScene.mode = InterlevelScene.Mode.DESCEND;
-					Game.switchScene( RankingsScene.class );
-				}
-			} );
-			curBtn.icon(Icons.get(Icons.RANKINGS));
+			} else {
+				addButton( curBtn = new RedButton( Messages.get(this, "start") ) {
+					@Override
+					protected void onClick() {
+						GamesInProgress.selectedClass = Dungeon.hero.heroClass;
+						GamesInProgress.curSlot = GamesInProgress.firstEmpty();
+						ShatteredPixelDungeon.switchScene(HeroSelectScene.class);
+					}
+				} );
+				curBtn.icon(Icons.get(Icons.ENTER));
+				curBtn.textColor(Window.TITLE_COLOR);
+
+				addButton( curBtn = new RedButton( Messages.get(this, "rankings") ) {
+					@Override
+					protected void onClick() {
+						InterlevelScene.mode = InterlevelScene.Mode.DESCEND;
+						Game.switchScene( RankingsScene.class );
+					}
+				} );
+				curBtn.icon(Icons.get(Icons.RANKINGS));
+			}
 		}
 
 		// Main menu
 		addButton(curBtn = new RedButton(Messages.get(this, "menu")) {
 			@Override
 			protected void onClick() {
-				try {
-					Dungeon.saveAll("wndGameMainMenu");
-				} catch (IOException e) {
-					ShatteredPixelDungeon.reportException(e);
-				}
-				Game.switchScene(TitleScene.class);
+				returnToMainMenu();
 			}
 		});
 		curBtn.icon(Icons.get(Icons.DISPLAY));
 		if (SPDSettings.intro()) curBtn.enable(false);
 
 		resize( WIDTH, pos );
+	}
+
+	public static void returnToMainMenu() {
+		WebMultiplayer.leaveActiveGameIntentionally();
+		try {
+			Dungeon.saveAll("wndGameMainMenu");
+		} catch (IOException e) {
+			ShatteredPixelDungeon.reportException(e);
+		}
+		Game.switchScene(TitleScene.class);
 	}
 	
 	private void addButton( RedButton btn ) {

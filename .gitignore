@@ -20,6 +20,9 @@ local.properties
 __MACOSX/
 *.zip
 
+# Local task documents
+.noisy_room/
+
 #intellij project files
 *.iml
 *.idea
